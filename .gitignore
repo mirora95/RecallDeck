@@ -1,0 +1,20 @@
+# .NET and IDE artifacts
+bin/
+obj/
+artifacts/
+TestResults/
+.vs/
+.idea/
+*.user
+*.suo
+
+# Local data, credentials and validation captures
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+*.keystore
+*.jks
+validation-media/
