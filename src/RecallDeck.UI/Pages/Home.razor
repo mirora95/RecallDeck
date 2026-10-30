@@ -1,0 +1,30 @@
+@page "/"
+
+<a class="skip-link" href="#main" @onclick="FocusMain" @onclick:preventDefault>Skip to content</a>
+<header class="masthead">
+    <span class="brand">RecallDeck</span>
+    <span class="build-state">Early development</span>
+</header>
+<main id="main" class="page" tabindex="-1" @ref="main">
+    <section class="introduction" aria-labelledby="welcome">
+        <h1 id="welcome">Make room for what you learn.</h1>
+        <p class="lead">A quieter place to collect questions, recall the answers, and return to them over time.</p>
+        <p>Decks and reviews are not available yet. This first build establishes the shared Android and web foundation.</p>
+        <a class="plan-link" href="#release-plan">See what is coming</a>
+    </section>
+    <section id="release-plan" aria-labelledby="plan-title">
+        <h2 id="plan-title">A little practice, built to last.</h2>
+        <dl class="release-plan">
+            <div><dt>Your own questions</dt><dd>Create decks and plain-text question-and-answer cards.</dd></div>
+            <div><dt>A reason to return</dt><dd>Reveal each answer, rate your recall, and review it when it is due.</dd></div>
+            <div><dt>Learning that stays with you</dt><dd>Keep data locally and export a backup you can restore.</dd></div>
+        </dl>
+        <p class="note">These features are planned for the first release. No account or cloud service is planned.</p>
+    </section>
+</main>
+
+@code {
+    private ElementReference main;
+
+    private async Task FocusMain() => await main.FocusAsync();
+}
