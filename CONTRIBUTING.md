@@ -19,4 +19,4 @@ Acceptance criteria are observable, dependencies are closed and delivered, scope
 
 Acceptance criteria pass, relevant tests/builds pass at the reviewed head, documentation describes actual behavior, no unresolved blocking review findings remain, CI is green, and the PR is merged into the intended base. A feature requiring runtime verification is incomplete until that verification exists. Document emulator/device coverage explicitly.
 
-Build commands will be introduced with the scaffold and checked in CI. Do not advertise unexecuted commands as verified. AI-assisted contributions are welcome with accurate descriptions and human/agent review attribution. Never invent co-authors, usage results or test evidence.
+Use the README's test/web publish and Android compile commands and inspect both CI jobs at the PR head. Do not advertise unexecuted commands as verified. AI-assisted contributions are welcome with accurate descriptions and human/agent review attribution. Never invent co-authors, usage results or test evidence.

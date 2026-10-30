@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RecallDeck.Core/RecallDeck.Core.csproj" />
+    <Project Path="src/RecallDeck.Mobile/RecallDeck.Mobile.csproj" />
+    <Project Path="src/RecallDeck.UI/RecallDeck.UI.csproj" />
+    <Project Path="src/RecallDeck.Web/RecallDeck.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RecallDeck.Core.Tests/RecallDeck.Core.Tests.csproj" />
+  </Folder>
+</Solution>
