@@ -4,7 +4,7 @@ Build a habit of remembering what you learn, one short review at a time.
 
 RecallDeck is an offline-first study app planned for **Android (.NET MAUI Blazor Hybrid)** and the **web (Blazor WebAssembly PWA)**. Create decks, write question-and-answer cards, and review cards when they become due.
 
-**Status: shared foundation.** Android and web hosts use the same informational landing page. Decks, reviews and persistence are not implemented yet. Follow the [issues](https://github.com/mirora95/RecallDeck/issues) and [roadmap](docs/roadmap.md) for progress. There is no public deployment or release download yet.
+**Status: shared foundation and tested domain rules.** Android and web hosts use the same informational landing page. Core deck/card validation and UTC review scheduling are implemented; deck/review screens and persistence are not available yet. Follow the [issues](https://github.com/mirora95/RecallDeck/issues) and [roadmap](docs/roadmap.md) for progress. There is no public deployment or release download yet.
 
 ## First release
 
@@ -27,6 +27,12 @@ Accounts, cloud sync, AI-generated cards and paid integrations are outside the f
 | `RecallDeck.Core.Tests` | Deterministic domain and application tests |
 
 Both hosts reference the same UI assembly; UI references Core, and Core has no platform dependencies. See the [product design](docs/superpowers/specs/2026-10-30-recalldeck-design.md).
+
+## Core rules
+
+Immutable decks/cards retain explicit nonempty UUIDs. Required title/front/back text is trimmed; internal Unicode, whitespace and literal markup are preserved. Limits use UTF-16 string length: title 80, description 500, each card side 4000. Description is optional and retained unchanged. Card models carry a deck ID; verifying that a stored deck exists belongs to application operations.
+
+`ReviewScheduler` takes a `TimeProvider`. New cards are due immediately at level 0. Remembered advances to levels 1–5 with 1/3/7/14/30 elapsed days from the review instant; level 5 stays capped. Again resets to level 0 and ten minutes later. Due instants are UTC; scheduling returns a new value without changing the old card. Persisting reviews and preventing duplicate submissions are later tasks.
 
 ## Run and verify
 
