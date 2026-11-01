@@ -254,9 +254,9 @@ public abstract class StudyStoreContractTests
 
     private static void AssertUnchanged(StudySnapshot before, StudySnapshot after)
     {
-        Assert.Equal(before.Decks, after.Decks);
-        Assert.Equal(before.Cards, after.Cards);
-        Assert.Equal(before.Reviews, after.Reviews);
+        Assert.Equal(before.Decks.OrderBy(deck => deck.Id), after.Decks.OrderBy(deck => deck.Id));
+        Assert.Equal(before.Cards.OrderBy(card => card.Id), after.Cards.OrderBy(card => card.Id));
+        Assert.Equal(before.Reviews.OrderBy(review => review.Id), after.Reviews.OrderBy(review => review.Id));
     }
 }
 
