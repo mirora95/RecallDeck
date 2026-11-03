@@ -4,7 +4,7 @@ Build a habit of remembering what you learn, one short review at a time.
 
 RecallDeck is an offline-first study app planned for **Android (.NET MAUI Blazor Hybrid)** and the **web (Blazor WebAssembly PWA)**. Create decks, write question-and-answer cards, and review cards when they become due.
 
-**Status: shared foundation and tested Core operations.** Android and web hosts use the same informational landing page. Core validation, UTC scheduling, deck operations and the storage contract are implemented; deck/review screens and platform persistence are not available yet. Follow the [issues](https://github.com/mirora95/RecallDeck/issues) and [roadmap](docs/roadmap.md) for progress. There is no public deployment or release download yet.
+**Status: shared foundation and tested Core operations.** Android and web hosts share an accessible shell with Home, Decks, Review, Progress and Backup routes. Feature pages clearly say what is not available yet; navigation includes a skip link and visible keyboard focus. Unexpected page errors offer retry without exposing exception details. Core validation, UTC scheduling, deck operations and the storage contract are implemented; deck/review screens and platform persistence are not available yet. Follow the [issues](https://github.com/mirora95/RecallDeck/issues) and [roadmap](docs/roadmap.md) for progress. There is no public deployment or release download yet.
 
 ## First release
 
@@ -24,7 +24,7 @@ Accounts, cloud sync, AI-generated cards and paid integrations are outside the f
 | `RecallDeck.UI` | Shared Razor components and styles |
 | `RecallDeck.Web` | Standalone Blazor WebAssembly PWA with IndexedDB storage |
 | `RecallDeck.Mobile` | Android MAUI Blazor Hybrid host with SQLite storage |
-| `RecallDeck.Core.Tests` | Deterministic domain and application tests |
+| `RecallDeck.Core.Tests` | Domain, application and shared UI interaction tests |
 
 Both hosts reference the same UI assembly; UI references Core, and Core has no platform dependencies. See the [product design](docs/superpowers/specs/2026-10-30-recalldeck-design.md).
 

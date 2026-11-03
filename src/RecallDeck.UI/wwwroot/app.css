@@ -13,15 +13,22 @@ a { color: #22624d; text-underline-offset: .22em; }
 a:hover { color: #102f25; }
 :focus-visible { outline: 3px solid #ad4b24; outline-offset: 5px; }
 ::selection { color: #ffffff; background: #22624d; }
-.masthead, .page { width: min(100% - 3rem, 68rem); margin-inline: auto; }
+.masthead, .primary-nav, .page { width: min(100% - 3rem, 68rem); margin-inline: auto; }
 .masthead { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1.4rem; border-bottom: 1px solid #c7cfc6; }
-.brand { font-weight: 750; font-size: 1.25rem; letter-spacing: -.03em; }
+.brand { font-weight: 750; font-size: 1.25rem; letter-spacing: -.03em; text-decoration: none; }
+.primary-nav { display: flex; flex-wrap: wrap; gap: .25rem; padding-block: .75rem; border-bottom: 1px solid #c7cfc6; }
+.primary-nav a { padding: .6rem .8rem; min-height: 44px; text-decoration: none; }
+.primary-nav a:hover { text-decoration: underline; }
+.primary-nav a.active { color: #ffffff; background: #243e35; text-decoration: underline; }
+button { font: inherit; color: #ffffff; background: #243e35; border: 1px solid #243e35; padding: .6rem 1rem; cursor: pointer; min-height: 44px; }
+button:hover { background: #102f25; }
 .build-state { font-size: .85rem; color: #4f6056; }
 .page { padding-block: clamp(2.5rem, 7vw, 6rem); }
 .introduction { max-width: 44rem; margin-bottom: 4.5rem; }
 h1 { font-family: Georgia, serif; font-size: clamp(2.8rem, 6.5vw, 5.2rem); line-height: 1.08; font-weight: 400; letter-spacing: -.035em; margin: 0 0 1.5rem; text-wrap: balance; }
 h2 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(1.7rem, 4vw, 2.3rem); line-height: 1.2; margin: 0 0 1.5rem; }
 p { max-width: 70ch; }
+.page { overflow-wrap: anywhere; }
 .lead { font-size: 1.25rem; line-height: 1.55; }
 .plan-link { display: inline-block; margin-top: .8rem; font-weight: 650; }
 .release-plan { margin: 0; max-width: 48rem; }
@@ -35,7 +42,7 @@ dd { margin: 0; }
 #blazor-error-ui { display: none; position: fixed; bottom: 0; padding: 1rem; width: 100%; background: #fff2db; color: #50381b; border-top: 1px solid #98734b; }
 .loading { padding: 2rem; }
 @media (max-width: 40rem) {
-    .masthead, .page { width: calc(100% - 2rem); }
+    .masthead, .primary-nav, .page { width: calc(100% - 2rem); }
     .release-plan div { grid-template-columns: 1fr; gap: .4rem; }
     .introduction { margin-bottom: 3.5rem; }
 }

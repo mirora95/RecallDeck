@@ -19,7 +19,7 @@ public class LandingTests
             return component.ToHtmlString();
         });
 
-        Assert.Contains("<h1 id=\"welcome\">Make room for what you learn.</h1>", html);
+        Assert.Contains("<h1 id=\"welcome\" tabindex=\"-1\">Make room for what you learn.</h1>", html);
         Assert.Contains("Decks and reviews are not available yet", html);
         Assert.Contains("id=\"release-plan\"", html);
         Assert.DoesNotContain("<button", html);
