@@ -1,0 +1,36 @@
+@inherits LayoutComponentBase
+
+<a class="skip-link" href="#main" @onclick="FocusMain" @onclick:preventDefault>Skip to content</a>
+<header class="masthead">
+    <a class="brand" href="">RecallDeck</a>
+    <span class="build-state">Early development</span>
+</header>
+<nav class="primary-nav" aria-label="Primary">
+    <NavLink href="" Match="NavLinkMatch.All">Home</NavLink>
+    <NavLink href="decks">Decks</NavLink>
+    <NavLink href="review">Review</NavLink>
+    <NavLink href="progress">Progress</NavLink>
+    <NavLink href="backup">Backup</NavLink>
+</nav>
+<main id="main" class="page" tabindex="-1" @ref="main">
+    <ErrorBoundary @ref="errorBoundary">
+        <ChildContent>@Body</ChildContent>
+        <ErrorContent>
+            <section role="alert">
+                <h1 tabindex="-1">Something went wrong</h1>
+                <p>RecallDeck could not display this page. Try again or choose another page from the navigation.</p>
+                <p>Any unsaved changes on this page may have been lost.</p>
+                <button @onclick="() => errorBoundary?.Recover()">Try again</button>
+            </section>
+        </ErrorContent>
+    </ErrorBoundary>
+</main>
+
+@code {
+    private ElementReference main;
+    private ErrorBoundary? errorBoundary;
+
+    protected override void OnParametersSet() => errorBoundary?.Recover();
+
+    private async Task FocusMain() => await main.FocusAsync();
+}
