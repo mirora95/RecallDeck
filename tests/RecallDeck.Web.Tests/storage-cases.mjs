@@ -151,6 +151,23 @@ export const cases = [
         equal((await pending.finish()).error, "canceled");
         equal((await read(call)).cards, [card]);
     })],
+    ["cancel after both review requests succeed rolls back and permits retry", () => isolated(async (call, name) => {
+        await seed(call);
+        const before = await read(call);
+        const add = IDBObjectStore.prototype.add;
+        let pending;
+        try {
+            IDBObjectStore.prototype.add = function (...args) {
+                const request = add.apply(this, args);
+                if (this.name === "reviews") request.addEventListener("success", () => pending.cancel());
+                return request;
+            };
+            pending = start(name, "applyReview", review, next);
+            equal((await pending.finish()).error, "canceled");
+        } finally { IDBObjectStore.prototype.add = add; }
+        equal(await read(call), before);
+        equal(await call("applyReview", review, next), {});
+    })],
     ["cancel after commit reports the actual successful outcome", () => isolated(async (call, name) => {
         const pending = start(name, "createDeck", deck);
         equal(await pending.finish(), {});
