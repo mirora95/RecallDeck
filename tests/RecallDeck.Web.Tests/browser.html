@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>RecallDeck IndexedDB contracts</title>
+<h1>IndexedDB storage contracts</h1><ol id="results"></ol>
+<script type="module">
+try {
+    const { cases } = await import('./storage-cases.mjs?browser');
+    for (const [name, check] of cases) {
+        const row = document.createElement('li');
+        try { await check(); row.textContent = `PASS ${name}`; }
+        catch (error) { row.textContent = `FAIL ${name}: ${error}`; }
+        document.querySelector('#results').append(row);
+    }
+} catch (error) {
+    document.querySelector('#results').textContent = `FAIL loading tests: ${error}`;
+}
+document.body.dataset.complete = 'true';
+</script></html>
