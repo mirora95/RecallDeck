@@ -4,7 +4,7 @@ Build a habit of remembering what you learn, one short review at a time.
 
 RecallDeck is an offline-first study app planned for **Android (.NET MAUI Blazor Hybrid)** and the **web (Blazor WebAssembly PWA)**. Create decks, write question-and-answer cards, and review cards when they become due.
 
-**Status: shared foundation and tested Core operations.** Android and web hosts share an accessible shell with Home, Decks, Review, Progress and Backup routes. Feature pages clearly say what is not available yet; navigation includes a skip link and visible keyboard focus. Unexpected page errors offer retry without exposing exception details. Core validation, UTC scheduling, deck operations and the storage contract are implemented; deck/review screens and platform persistence are not available yet. Follow the [issues](https://github.com/mirora95/RecallDeck/issues) and [roadmap](docs/roadmap.md) for progress. There is no public deployment or release download yet.
+**Status: shared foundation, tested Core operations and browser storage adapter.** Android and web hosts share an accessible shell with Home, Decks, Review, Progress and Backup routes. Feature pages clearly say what is not available yet; navigation includes a skip link and visible keyboard focus. Unexpected page errors offer retry without exposing exception details. Core validation, UTC scheduling, deck/card operations and the storage contract are implemented. The web host registers a transactional IndexedDB adapter; deck/review screens and Android persistence are not available yet. Follow the [issues](https://github.com/mirora95/RecallDeck/issues) and [roadmap](docs/roadmap.md) for progress. There is no public deployment or release download yet.
 
 ## First release
 
@@ -34,7 +34,7 @@ Immutable decks/cards retain explicit nonempty UUIDs. Required title/front/back 
 
 `ReviewScheduler` takes a `TimeProvider`. New cards are due immediately at level 0. Remembered advances to levels 1–5 with 1/3/7/14/30 elapsed days from the review instant; level 5 stays capped. Again resets to level 0 and ten minutes later. Due instants are UTC; scheduling returns a new value without changing the old card. Platform review persistence and the session flow remain later tasks.
 
-`DeckService` creates, renames and lists decks through `IStudyStore`, retaining validation field names and propagating failed saves. The [storage contract](docs/storage-contract.md) defines immutable snapshots, atomic writes and reusable adapter tests. Its current in-memory implementation is test-only; it does not provide shipping persistence.
+`DeckService` creates, renames and lists decks through `IStudyStore`, retaining validation field names and propagating failed saves. The [storage contract](docs/storage-contract.md) defines immutable snapshots, atomic writes and adapter checks. The web adapter persists locally in IndexedDB, reports storage/quota failures without resetting data, and finishes writes only after transaction completion. The in-memory implementation remains test-only. Storage registration does not yet connect the planned feature screens.
 
 ## Run and verify
 
@@ -42,12 +42,16 @@ Install the .NET **10.0.401 SDK** pinned in `global.json`. From the repository r
 
 ```sh
 dotnet test tests/RecallDeck.Core.Tests -c Release
+npm ci --ignore-scripts
+npm test
 dotnet build src/RecallDeck.Web -c Release
 dotnet publish src/RecallDeck.Web -c Release -o artifacts/web
 dotnet run --project src/RecallDeck.Web --no-launch-profile --urls http://127.0.0.1:5189
 ```
 
 Open `http://127.0.0.1:5189` for the development host. The published PWA files are in `artifacts/web/wwwroot`; use a static server with correct WebAssembly MIME types to test them. Service-worker caching is enabled only in published builds. Full offline user flows are a later milestone, not a verified feature of this scaffold.
+
+The Node storage suite needs Node 22 or later and uses `fake-indexeddb` 6.2.7 (Apache-2.0), a **test-only** implementation. Native Chrome and real .NET→JavaScript roundtrip/reload checks are described in the [storage verification instructions](docs/storage-contract.md#browser-adapter-verification). No JavaScript runtime dependency is shipped.
 
 For Android, install the `maui-android` workload, JDK 21, Android platform 36 and build-tools 36.0.0. Then compile without packaging or release signing:
 

@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Compile Include="..\..\src\RecallDeck.Web\Storage\IndexedDbStudyStore.cs" Link="Storage\IndexedDbStudyStore.cs" />
   </ItemGroup>
 
   <ItemGroup>

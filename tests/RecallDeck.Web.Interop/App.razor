@@ -1,0 +1,62 @@
+@using RecallDeck.Core
+@using RecallDeck.Core.Storage
+@using Microsoft.AspNetCore.Components.Web
+@inject IStudyStore Store
+
+<h1>RecallDeck .NET IndexedDB interop checks</h1>
+<p>Dedicated test origin only. Uses synthetic data; stops if unrelated data is found.</p>
+<button @onclick="RunAsync" disabled="@running">Run checks</button>
+<ol>@foreach (var result in results) { <li>@result</li> }</ol>
+
+@code {
+    private readonly List<string> results = [];
+    private bool running;
+    private static readonly Guid DeckId = Guid.Parse("dca9bb02-54a5-44da-96e1-64b32b4e9ef2");
+    private static readonly Guid CardId = Guid.Parse("a9ce01df-506b-4353-a332-105e4ef76cab");
+    private static readonly Guid ReviewId = Guid.Parse("74fdfd9d-66fb-4dbb-944f-85b7e1e47c18");
+    private static readonly Guid SessionId = Guid.Parse("7161ccef-c732-4aa6-bc13-4d01e724cf05");
+    private static readonly DateTimeOffset Now = new(2026, 11, 4, 14, 0, 0, TimeSpan.Zero);
+
+    private async Task RunAsync()
+    {
+        running = true;
+        try
+        {
+            var before = await Store.ReadSnapshotAsync();
+            if (before.Decks.Count == 0 && before.Cards.Count == 0 && before.Reviews.Count == 0)
+            {
+                await Store.CreateDeckAsync(new Deck(DeckId, "日本語 😀", "description"));
+                await Store.CreateCardAsync(new Card(CardId, DeckId, "literal <script>", "answer", new ReviewSchedule(0, Now)));
+                await Store.UpdateDeckAsync(new Deck(DeckId, "Renamed 😀", "description"));
+                await Store.UpdateCardAsync(new Card(CardId, DeckId, "Edited <script>", "answer", new ReviewSchedule(0, Now)));
+                await Store.ApplyReviewAsync(new ReviewEvent(ReviewId, CardId, SessionId, ReviewRating.Remembered, Now), new ReviewSchedule(1, Now.AddDays(1)));
+                var after = await Store.ReadSnapshotAsync();
+                Verify(after.Decks.Single().Title == "Renamed 😀" && after.Cards.Single().Front == "Edited <script>" && after.Reviews.Single().Id == ReviewId, "C# create/edit/review roundtrip");
+                Verify(before.Decks.Count == 0 && before.Cards.Count == 0, "immutable prior snapshot");
+                results.Add("READY: reload this page, then Run checks to verify persisted data and clean up the fixture.");
+            }
+            else
+            {
+                if (before.Decks.Count != 1 || before.Decks[0].Id != DeckId || before.Cards.Count != 1 || before.Cards[0].Id != CardId || before.Reviews.Count != 1 || before.Reviews[0].Id != ReviewId)
+                    throw new InvalidOperationException("Unrelated data present; no cleanup performed.");
+
+                Verify(before.Decks[0].Title == "Renamed 😀" && before.Cards[0].Schedule == new ReviewSchedule(1, Now.AddDays(1)) && before.Reviews[0].SessionItemId == SessionId, "reload preserves identities, Unicode and UTC schedule/history");
+                try { await Store.CreateDeckAsync(new Deck(DeckId, "Duplicate")); throw new Exception("Duplicate accepted"); }
+                catch (InvalidOperationException) { results.Add("PASS duplicate maps to InvalidOperationException"); }
+
+                await Store.DeleteDeckAsync(DeckId);
+                var after = await Store.ReadSnapshotAsync();
+                Verify(after.Decks.Count == 0 && after.Cards.Count == 0 && after.Reviews.Count == 0, "atomic cascade and synthetic fixture cleanup");
+                results.Add("COMPLETE");
+            }
+        }
+        catch (Exception error) { results.Add($"FAIL {error}"); }
+        finally { running = false; }
+    }
+
+    private void Verify(bool condition, string name)
+    {
+        if (!condition) throw new Exception(name);
+        results.Add($"PASS {name}");
+    }
+}

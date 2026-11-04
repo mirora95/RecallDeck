@@ -2,6 +2,8 @@
 bin/
 obj/
 artifacts/
+node_modules/
+tests/RecallDeck.Web.Interop/wwwroot/study-store.js
 TestResults/
 .vs/
 .idea/

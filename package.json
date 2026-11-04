@@ -1,0 +1,7 @@
+{
+  "name": "recalldeck-storage-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test tests/RecallDeck.Web.Tests/*.test.mjs" },
+  "devDependencies": { "fake-indexeddb": "6.2.7" }
+}
