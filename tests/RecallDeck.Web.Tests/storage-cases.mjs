@@ -130,12 +130,17 @@ export const cases = [
             const request = indexedDB.open(name, 2);
             request.onsuccess = () => { request.result.close(); resolve(); };
             request.onerror = () => reject(request.error);
+            request.onblocked = () => reject(new Error("Test database upgrade blocked"));
         });
         equal((await read(call)).error, "version");
         const request = indexedDB.open(name, 2);
         const rows = await new Promise((resolve, reject) => {
+            let abandoned = false;
+            request.onerror = () => reject(request.error);
+            request.onblocked = () => { abandoned = true; reject(new Error("Test database verification blocked")); };
             request.onsuccess = () => {
                 const db = request.result;
+                if (abandoned) { db.close(); return; }
                 const tx = db.transaction("cards");
                 const get = tx.objectStore("cards").getAll();
                 tx.oncomplete = () => { db.close(); resolve(get.result); };

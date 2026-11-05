@@ -2,6 +2,7 @@
   "name": "recalldeck-storage-tests",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test tests/RecallDeck.Web.Tests/*.test.mjs" },
+  "engines": { "node": ">=22" },
+  "scripts": { "test": "node --test tests/RecallDeck.Web.Tests/indexeddb.test.mjs tests/RecallDeck.Web.Tests/harness-failure.test.mjs" },
   "devDependencies": { "fake-indexeddb": "6.2.7" }
 }
