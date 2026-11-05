@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+    <ApplicationId>io.github.mirora95.recalldeck.storagesmoke</ApplicationId>
+    <ApplicationTitle>RecallDeck storage checks</ApplicationTitle>
+    <RuntimeIdentifier>android-x64</RuntimeIdentifier>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/RecallDeck.Storage.Sqlite/RecallDeck.Storage.Sqlite.csproj" />
+    <Compile Include="../RecallDeck.Storage.Checks/SqliteSmoke.cs" Link="SqliteSmoke.cs" />
+  </ItemGroup>
+</Project>

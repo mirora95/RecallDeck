@@ -62,3 +62,10 @@ jobs:
           -p:AndroidSdkDirectory="$ANDROID_HOME"
           -p:JavaSdkDirectory="$JAVA_HOME"
           --verbosity minimal
+      - name: Compile Android SQLite smoke app
+        run: >-
+          dotnet build tests/RecallDeck.Android.StorageSmoke -c Debug
+          -p:AndroidBuildApplicationPackage=false
+          -p:AndroidSdkDirectory="$ANDROID_HOME"
+          -p:JavaSdkDirectory="$JAVA_HOME"
+          --verbosity minimal

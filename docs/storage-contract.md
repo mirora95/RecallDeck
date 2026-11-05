@@ -62,6 +62,8 @@ Open `http://127.0.0.1:5193`, click **Run checks**, reload, then click **Run che
 
 ## Primary references
 
+The Android adapter and its independent native runtime smoke are described in [SQLite storage](sqlite-storage.md).
+
 - [CancellationToken.ThrowIfCancellationRequested](https://learn.microsoft.com/en-us/dotnet/api/system.threading.cancellationtoken.throwifcancellationrequested?view=net-10.0)
 - [Array.AsReadOnly](https://learn.microsoft.com/en-us/dotnet/api/system.array.asreadonly?view=net-10.0): a wrapper is not a defensive copy; StudySnapshot copies each input before wrapping it.
 - [Using IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB)

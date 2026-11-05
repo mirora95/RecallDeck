@@ -22,5 +22,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="10.0.20" />
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
     <ProjectReference Include="../RecallDeck.UI/RecallDeck.UI.csproj" />
+    <ProjectReference Include="../RecallDeck.Storage.Sqlite/RecallDeck.Storage.Sqlite.csproj" />
   </ItemGroup>
 </Project>
