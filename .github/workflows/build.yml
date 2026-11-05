@@ -26,6 +26,9 @@ jobs:
         with:
           global-json-file: global.json
       - run: dotnet test tests/RecallDeck.Core.Tests -c Release --verbosity minimal
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
       - run: npm ci --ignore-scripts && npm test
       - run: dotnet build tests/RecallDeck.Web.Interop -c Release --verbosity minimal
       - run: dotnet publish src/RecallDeck.Web -c Release -o artifacts/web --verbosity minimal

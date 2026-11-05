@@ -47,7 +47,12 @@ public sealed class IndexedDbStudyStore(IJSRuntime js) : IStudyStore
 
             using var pending = module.Invoke<IJSInProcessObjectReference>("begin", operation, value, schedule);
             // WASM in-process cancellation aborts the transaction; canceling only InvokeAsync would leave the write running.
-            using var registration = cancellationToken.Register(() => pending.InvokeVoid("cancel"));
+            using var registration = cancellationToken.Register(() =>
+            {
+                try { pending.InvokeVoid("cancel"); }
+                // Cancellation is best-effort; finish still determines whether the transaction committed.
+                catch (JSException) { }
+            });
             var result = await pending.InvokeAsync<StorageResult>("finish");
 
             return result.Error switch

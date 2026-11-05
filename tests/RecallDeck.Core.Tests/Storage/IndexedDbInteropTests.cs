@@ -75,10 +75,34 @@ public sealed class IndexedDbInteropTests
         Assert.True(js.Disposed);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task JavascriptCancellationFailureDoesNotEscapeCancelOrReplaceActualOutcome(bool aborted)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var js = new Interop
+        {
+            ThrowOnCancel = true,
+            BeforeFinish = cancellation.Cancel,
+            Result = aborted ? new { error = "canceled" } : (object)new { }
+        };
+
+        var failure = await Record.ExceptionAsync(() => new IndexedDbStudyStore(js).DeleteDeckAsync(Guid.NewGuid(), cancellation.Token));
+
+        if (aborted)
+            Assert.IsAssignableFrom<OperationCanceledException>(failure);
+        else
+            Assert.Null(failure);
+        Assert.True(js.Canceled);
+        Assert.True(js.Disposed);
+    }
+
     private sealed class Interop : IJSRuntime, IJSInProcessObjectReference
     {
         public object Result { get; init; } = new { };
         public Action? BeforeFinish { get; init; }
+        public bool ThrowOnCancel { get; init; }
         public bool Opened { get; private set; }
         public bool Canceled { get; private set; }
         public bool Disposed { get; private set; }
@@ -86,7 +110,12 @@ public sealed class IndexedDbInteropTests
 
         public TValue Invoke<TValue>(string identifier, params object?[]? args)
         {
-            if (identifier == "cancel") { Canceled = true; return default!; }
+            if (identifier == "cancel")
+            {
+                Canceled = true;
+                if (ThrowOnCancel) throw new JSException("Injected abort failure");
+                return default!;
+            }
             Assert.Equal("begin", identifier);
             Operation = (string)args![0]!;
             return (TValue)(object)this;
