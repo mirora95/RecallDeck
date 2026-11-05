@@ -4,7 +4,7 @@ Build a habit of remembering what you learn, one short review at a time.
 
 RecallDeck is an offline-first study app planned for **Android (.NET MAUI Blazor Hybrid)** and the **web (Blazor WebAssembly PWA)**. Create decks, write question-and-answer cards, and review cards when they become due.
 
-**Status: shared foundation, tested Core operations and browser storage adapter.** Android and web hosts share an accessible shell with Home, Decks, Review, Progress and Backup routes. Feature pages clearly say what is not available yet; navigation includes a skip link and visible keyboard focus. Unexpected page errors offer retry without exposing exception details. Core validation, UTC scheduling, deck/card operations and the storage contract are implemented. The web host registers a transactional IndexedDB adapter; deck/review screens and Android persistence are not available yet. Follow the [issues](https://github.com/mirora95/RecallDeck/issues) and [roadmap](docs/roadmap.md) for progress. There is no public deployment or release download yet.
+**Status: shared foundation, tested Core operations and local storage adapters.** Android and web hosts share an accessible shell with Home, Decks, Review, Progress and Backup routes. Feature pages clearly say what is not available yet; navigation includes a skip link and visible keyboard focus. Unexpected page errors offer retry without exposing exception details. Core validation, UTC scheduling, deck/card operations and the storage contract are implemented. The web host registers transactional IndexedDB storage and Android registers app-private SQLite storage; feature screens are not connected yet. Follow the [issues](https://github.com/mirora95/RecallDeck/issues) and [roadmap](docs/roadmap.md) for progress. There is no public deployment or release download yet.
 
 ## First release
 
@@ -21,6 +21,7 @@ Accounts, cloud sync, AI-generated cards and paid integrations are outside the f
 | Project | Responsibility |
 | --- | --- |
 | `RecallDeck.Core` | Models, validation, review scheduling and application operations |
+| `RecallDeck.Storage.Sqlite` | Transactional SQLite adapter used by Android and storage tests |
 | `RecallDeck.UI` | Shared Razor components and styles |
 | `RecallDeck.Web` | Standalone Blazor WebAssembly PWA with IndexedDB storage |
 | `RecallDeck.Mobile` | Android MAUI Blazor Hybrid host with SQLite storage |
@@ -37,6 +38,8 @@ Immutable decks/cards retain explicit nonempty UUIDs. Required title/front/back 
 `DeckService` creates, renames and lists decks through `IStudyStore`, retaining validation field names and propagating failed saves. The [storage contract](docs/storage-contract.md) defines immutable snapshots, atomic writes and adapter checks. The web adapter persists locally in IndexedDB, reports storage/quota failures without resetting data, and finishes writes only after transaction completion. The in-memory implementation remains test-only. Storage registration does not yet connect the planned feature screens.
 
 ## Run and verify
+
+The [Android SQLite adapter and runtime smoke instructions](docs/sqlite-storage.md) cover native persistence, process restart and rollback. The shipping MAUI host registers the adapter with an app-private database path; feature-screen integration remains later work.
 
 Install the .NET **10.0.401 SDK** pinned in `global.json`. From the repository root:
 
