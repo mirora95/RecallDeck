@@ -31,7 +31,7 @@ public sealed class MainActivity : Activity
             }
         }
         catch (Exception error) { result = "FAIL: " + error; }
-        File.WriteAllText(Path.Combine(directory, "result.txt"), result);
+        await File.WriteAllTextAsync(Path.Combine(directory, "result.txt"), result);
         output.Text = result;
     }
 }

@@ -32,15 +32,22 @@ public static class SqliteSmoke
             Guid.Parse("0dce04f6-80d8-41c0-bf28-7e6d05c8317a"), ReviewRating.Remembered, DateTimeOffset.UnixEpoch.AddDays(1));
         var later = new ReviewSchedule(2, DateTimeOffset.UnixEpoch.AddDays(4));
         using (var db = new SQLiteConnection(path))
-            db.Execute("CREATE TRIGGER FailReview BEFORE INSERT ON Reviews BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END");
+            db.Execute("CREATE TRIGGER IF NOT EXISTS FailReview BEFORE INSERT ON Reviews BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END");
         try
         {
-            await store.ApplyReviewAsync(second, later);
-            throw new InvalidOperationException("Expected a failed review write.");
+            try
+            {
+                await store.ApplyReviewAsync(second, later);
+                throw new InvalidOperationException("Expected a failed review write.");
+            }
+            catch (IOException error) when (error.InnerException is SQLiteException sql && sql.Message.Contains("synthetic failure", StringComparison.Ordinal)) { }
+            await CheckSavedAsync(path);
         }
-        catch (IOException) { }
-        await CheckSavedAsync(path);
-        using (var db = new SQLiteConnection(path)) db.Execute("DROP TRIGGER FailReview");
+        finally
+        {
+            using var db = new SQLiteConnection(path);
+            db.Execute("DROP TRIGGER IF EXISTS FailReview");
+        }
         await store.ApplyReviewAsync(second, later);
         var saved = await new SqliteStudyStore(path).ReadSnapshotAsync();
         if (saved.Cards.Single().Schedule != later || saved.Reviews.Count != 2 || !saved.Reviews.Contains(second))

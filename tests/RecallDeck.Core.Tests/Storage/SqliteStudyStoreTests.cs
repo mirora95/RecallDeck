@@ -102,6 +102,36 @@ public sealed class SqliteStudyStoreTests : StudyStoreContractTests, IDisposable
         await RecallDeck.Storage.Checks.SqliteSmoke.VerifyRestartAndRollbackAsync(path);
     }
 
+    [Fact]
+    public async Task AndroidSmokeResumesAfterInterruptedFailureInjection()
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "interrupted-smoke.db3");
+        await RecallDeck.Storage.Checks.SqliteSmoke.SeedAsync(path);
+        using (var db = new SQLiteConnection(path))
+            db.Execute("CREATE TRIGGER FailReview BEFORE INSERT ON Reviews BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END");
+
+        await RecallDeck.Storage.Checks.SqliteSmoke.VerifyRestartAndRollbackAsync(path);
+
+        using var verified = new SQLiteConnection(path);
+        Assert.Equal(0, verified.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = 'FailReview'"));
+    }
+
+    [Fact]
+    public async Task AndroidSmokeRemovesItsTriggerWhenVerificationFails()
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "failed-smoke.db3");
+        await RecallDeck.Storage.Checks.SqliteSmoke.SeedAsync(path);
+        using (var db = new SQLiteConnection(path))
+            db.Execute("CREATE TRIGGER FailReview BEFORE INSERT ON Reviews BEGIN SELECT RAISE(IGNORE); END");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => RecallDeck.Storage.Checks.SqliteSmoke.VerifyRestartAndRollbackAsync(path));
+
+        using var verified = new SQLiteConnection(path);
+        Assert.Equal(0, verified.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = 'FailReview'"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
