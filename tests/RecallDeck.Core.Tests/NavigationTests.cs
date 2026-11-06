@@ -4,12 +4,19 @@ using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using RecallDeck.UI;
+using RecallDeck.Core.Storage;
+using RecallDeck.Core.Tests.Storage;
 
 namespace RecallDeck.Core.Tests;
 
 public class NavigationTests : BunitContext
 {
-    public NavigationTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public NavigationTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddSingleton<IStudyStore, InMemoryStudyStore>();
+        Services.AddScoped<DeckService>();
+    }
 
     [Theory]
     [InlineData("/", "Make room for what you learn.", "Home")]
@@ -26,6 +33,14 @@ public class NavigationTests : BunitContext
         Assert.Single(page.FindAll("main#main[tabindex='-1']"));
         Assert.Equal(5, page.FindAll("nav[aria-label='Primary'] a").Count);
         Assert.Equal(active, page.Find("nav a.active").TextContent);
+
+        if (path == "/decks")
+        {
+            Assert.Contains("No decks yet", page.Find("main").TextContent);
+            Assert.Single(page.FindAll("#create-deck"));
+            return;
+        }
+
         Assert.Contains("not available yet", page.Find("main").TextContent);
         Assert.Empty(page.FindAll("main input, main button"));
     }
