@@ -1,6 +1,243 @@
 @page "/decks"
+@using RecallDeck.Core
+@inject DeckService DeckService
 
 <PageTitle>Decks · RecallDeck</PageTitle>
 <h1 tabindex="-1">Decks</h1>
 <p class="lead">Your questions, organized for practice.</p>
-<p>Decks are not available yet. Creating decks and editing plain-text cards are planned for the first release.</p>
+
+@if (loading)
+{
+    <p role="status">Loading decks…</p>
+}
+else if (loadFailed)
+{
+    <div role="alert">
+        <p>We could not load your decks. Try again to read your saved decks. @StorageRecovery</p>
+        <button type="button" @onclick="LoadAsync">Try again</button>
+    </div>
+}
+else
+{
+    <div class="deck-workspace">
+        <section aria-labelledby="create-heading">
+            <h2 id="create-heading">Create a deck</h2>
+            <form id="create-deck" @onsubmit="CreateAsync" @onsubmit:preventDefault novalidate>
+                <fieldset disabled="@saving">
+                    <legend class="visually-hidden">New deck</legend>
+                    <label for="create-title">Title</label>
+                    <p id="create-title-hint" class="field-hint">Required · 1–80 characters</p>
+                    <input id="create-title" @bind="createTitle" @bind:event="oninput" required maxlength="80"
+                           aria-invalid="@(createTitleError is not null ? "true" : null)"
+                           aria-describedby="@(createTitleError is null ? "create-title-hint" : "create-title-hint create-title-error")" />
+                    @if (createTitleError is not null)
+                    {
+                        <p id="create-title-error" class="field-error" role="alert">@createTitleError</p>
+                    }
+                    <label for="create-description">Description <span class="field-hint">(optional)</span></label>
+                    <p id="create-description-hint" class="field-hint">Up to 500 characters</p>
+                    <textarea id="create-description" @bind="createDescription" @bind:event="oninput" maxlength="500" rows="3"
+                              aria-invalid="@(createDescriptionError is not null ? "true" : null)"
+                              aria-describedby="@(createDescriptionError is null ? "create-description-hint" : "create-description-hint create-description-error")"></textarea>
+                    @if (createDescriptionError is not null)
+                    {
+                        <p id="create-description-error" class="field-error" role="alert">@createDescriptionError</p>
+                    }
+                    @if (createError is not null)
+                    {
+                        <p class="field-error" role="alert">@createError</p>
+                    }
+                    <button type="submit">@(creating ? "Creating…" : "Create deck")</button>
+                </fieldset>
+            </form>
+        </section>
+        <section id="deck-list" aria-labelledby="decks-heading">
+            <h2 id="decks-heading" tabindex="-1" @ref="decksHeading">Your decks</h2>
+            @if (decks.Count == 0)
+            {
+                <p>No decks yet. Create your first deck to collect what you want to learn.</p>
+            }
+            else
+            {
+                <ul class="deck-list">
+                    @foreach (var deck in decks)
+                    {
+                        <li class="deck-row" @key="deck.Id">
+                            <h3>@deck.Title</h3>
+                            @if (deck.Description.Length > 0)
+                            {
+                                <p class="deck-description">@deck.Description</p>
+                            }
+                            @if (renamingId == deck.Id)
+                            {
+                                <form id="rename-deck" @onsubmit="RenameAsync" @onsubmit:preventDefault novalidate>
+                                    <fieldset disabled="@saving">
+                                        <legend class="visually-hidden">Rename @deck.Title</legend>
+                                        <label for="rename-title">New title</label>
+                                        <p id="rename-title-hint" class="field-hint">Required · 1–80 characters</p>
+                                        <input id="rename-title" @ref="renameInput" @bind="renameTitle" @bind:event="oninput" required maxlength="80"
+                                               aria-invalid="@(renameTitleError is not null ? "true" : null)"
+                                               aria-describedby="@(renameTitleError is null ? "rename-title-hint" : "rename-title-hint rename-title-error")" />
+                                        @if (renameTitleError is not null)
+                                        {
+                                            <p id="rename-title-error" class="field-error" role="alert">@renameTitleError</p>
+                                        }
+                                        @if (renameError is not null)
+                                        {
+                                            <p class="field-error" role="alert">@renameError</p>
+                                        }
+                                        <div class="form-actions">
+                                            <button type="submit">@(saving && !creating ? "Saving…" : "Save title")</button>
+                                            <button type="button" class="secondary" @onclick="CancelRename">Cancel</button>
+                                        </div>
+                                    </fieldset>
+                                </form>
+                            }
+                            else
+                            {
+                                <button type="button" class="secondary" disabled="@(saving || renamingId is not null)"
+                                        aria-label="@($"Rename {deck.Title}")" @onclick="() => BeginRename(deck)">Rename</button>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    </div>
+    <p role="status">@status</p>
+    <p class="note">Decks are saved on this device. Card editing and reviews are coming next.</p>
+}
+
+@code {
+    private const string StorageRecovery = "If storage is full, free space outside this app, then retry. In a browser, allow site storage. If the database needs a newer app, copy unsaved text and open a compatible updated app. Do not clear this app's data.";
+    private const string TitleError = "Enter a title from 1 to 80 characters.";
+    private List<Deck> decks = [];
+    private bool loading = true;
+    private bool loadFailed;
+    private bool saving;
+    private bool creating;
+    private string createTitle = "";
+    private string createDescription = "";
+    private string? createTitleError;
+    private string? createDescriptionError;
+    private string? createError;
+    private Guid? renamingId;
+    private string renameTitle = "";
+    private string? renameTitleError;
+    private string? renameError;
+    private string status = "";
+    private ElementReference renameInput;
+    private ElementReference decksHeading;
+    private bool focusPending;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!focusPending) return;
+
+        focusPending = false;
+        await (renamingId is null ? decksHeading : renameInput).FocusAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        loadFailed = false;
+        try
+        {
+            decks = (await DeckService.ListAsync()).ToList();
+        }
+        catch (Exception)
+        {
+            loadFailed = true;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (saving) return;
+
+        saving = true;
+        creating = true;
+        createTitleError = createDescriptionError = createError = null;
+        status = "";
+        try
+        {
+            var created = await DeckService.CreateAsync(createTitle, createDescription);
+            decks.Add(created);
+            SortDecks();
+            createTitle = createDescription = "";
+            status = "Deck created.";
+        }
+        catch (ArgumentException error) when (error.ParamName is "title" or "description")
+        {
+            if (error.ParamName == "title") createTitleError = TitleError;
+            else createDescriptionError = "Use at most 500 characters for the description.";
+        }
+        catch (Exception)
+        {
+            createError = "We could not create your deck. Your text is still here. Try again with Create deck. " + StorageRecovery;
+        }
+        finally
+        {
+            saving = creating = false;
+        }
+    }
+
+    private void BeginRename(Deck deck)
+    {
+        if (saving || renamingId is not null) return;
+
+        renamingId = deck.Id;
+        focusPending = true;
+        renameTitle = deck.Title;
+        renameTitleError = renameError = null;
+        status = "";
+    }
+
+    private void CancelRename()
+    {
+        if (saving) return;
+
+        renamingId = null;
+        focusPending = true;
+        renameTitleError = renameError = null;
+    }
+
+    private async Task RenameAsync()
+    {
+        if (saving || renamingId is null) return;
+
+        saving = true;
+        renameTitleError = renameError = null;
+        status = "";
+        try
+        {
+            var renamed = await DeckService.RenameAsync(renamingId.Value, renameTitle);
+            decks[decks.FindIndex(deck => deck.Id == renamed.Id)] = renamed;
+            SortDecks();
+            renamingId = null;
+            focusPending = true;
+            status = "Deck renamed.";
+        }
+        catch (ArgumentException error) when (error.ParamName == "title")
+        {
+            renameTitleError = TitleError;
+        }
+        catch (Exception)
+        {
+            renameError = "We could not rename your deck. Your title is still here. Try again with Save title. " + StorageRecovery;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private void SortDecks() => decks = decks.OrderBy(deck => deck.Title, StringComparer.Ordinal).ThenBy(deck => deck.Id).ToList();
+}

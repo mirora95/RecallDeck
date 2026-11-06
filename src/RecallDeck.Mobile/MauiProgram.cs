@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using RecallDeck.Core;
 using RecallDeck.Core.Storage;
 using RecallDeck.Storage.Sqlite;
 
@@ -14,6 +15,8 @@ public static class MauiProgram
         builder.Services.AddMauiBlazorWebView();
 
         builder.Services.AddSingleton<IStudyStore>(_ => new SqliteStudyStore(Path.Combine(FileSystem.AppDataDirectory, "study.db3")));
+
+        builder.Services.AddScoped<DeckService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
