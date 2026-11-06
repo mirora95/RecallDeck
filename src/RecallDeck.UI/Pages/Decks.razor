@@ -13,7 +13,7 @@
 else if (loadFailed)
 {
     <div role="alert">
-        <p>We could not load your decks. Try again to read your saved decks.</p>
+        <p>We could not load your decks. Try again to read your saved decks. @StorageRecovery</p>
         <button type="button" @onclick="LoadAsync">Try again</button>
     </div>
 }
@@ -109,6 +109,7 @@ else
 }
 
 @code {
+    private const string StorageRecovery = "If storage is full, free space outside this app, then retry. In a browser, allow site storage. If the database needs a newer app, copy unsaved text and open a compatible updated app. Do not clear this app's data.";
     private const string TitleError = "Enter a title from 1 to 80 characters.";
     private List<Deck> decks = [];
     private bool loading = true;
@@ -180,7 +181,7 @@ else
         }
         catch (Exception)
         {
-            createError = "We could not create your deck. Your text is still here. Try again with Create deck.";
+            createError = "We could not create your deck. Your text is still here. Try again with Create deck. " + StorageRecovery;
         }
         finally
         {
@@ -230,7 +231,7 @@ else
         }
         catch (Exception)
         {
-            renameError = "We could not rename your deck. Your title is still here. Try again with Save title.";
+            renameError = "We could not rename your deck. Your title is still here. Try again with Save title. " + StorageRecovery;
         }
         finally
         {

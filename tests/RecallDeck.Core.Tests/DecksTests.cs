@@ -39,6 +39,7 @@ public class DecksTests : BunitContext
         store.ReadGate.SetException(new IOException("private storage detail"));
         page.WaitForAssertion(() => Assert.Contains("Try again", page.Find("[role='alert']").TextContent));
         Assert.DoesNotContain("private storage detail", page.Markup);
+        AssertStorageRecoveryAdvice(page.Find("[role='alert']").TextContent);
         store.ReadGate = null;
         await page.Find("button").ClickAsync(new());
         Assert.Contains("No decks yet", page.Markup);
@@ -98,6 +99,7 @@ public class DecksTests : BunitContext
 
         Assert.Contains("Try again", page.Find("[role='alert']").TextContent);
         Assert.DoesNotContain("private storage detail", page.Markup);
+        AssertStorageRecoveryAdvice(page.Find("[role='alert']").TextContent);
         Assert.Equal("Biology", page.Find("#create-title").GetAttribute("value"));
         Assert.Equal("Cell notes", page.Find("#create-description").GetAttribute("value"));
         Assert.Empty((await store.Inner.ReadSnapshotAsync()).Decks);
@@ -145,6 +147,7 @@ public class DecksTests : BunitContext
         Assert.Equal("  日本語 <b>New</b>  ", page.Find("#rename-title").GetAttribute("value"));
         Assert.Contains("Try again", page.Find("[role='alert']").TextContent);
         Assert.DoesNotContain("private storage detail", page.Markup);
+        AssertStorageRecoveryAdvice(page.Find("[role='alert']").TextContent);
         Assert.Equal(original, Assert.Single((await store.Inner.ReadSnapshotAsync()).Decks));
 
         await page.Find("#rename-deck").SubmitAsync();
@@ -198,6 +201,15 @@ public class DecksTests : BunitContext
         page.Find("#rename-title").Input("Anatomy");
         await page.Find("#rename-deck").SubmitAsync();
         Assert.Equal(4, JSInterop.Invocations["Blazor._internal.domWrapper.focus"].Count);
+    }
+
+    private static void AssertStorageRecoveryAdvice(string message)
+    {
+        Assert.Contains("free space outside this app", message);
+        Assert.Contains("allow site storage", message);
+        Assert.Contains("copy unsaved text", message);
+        Assert.Contains("compatible updated app", message);
+        Assert.Contains("Do not clear this app's data", message);
     }
 
     private sealed class ControlledStore : IStudyStore
