@@ -20,6 +20,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ReviewScheduler>();
 builder.Services.AddScoped<CardService>();
 builder.Services.AddScoped<ReviewQueueService>();
+builder.Services.AddScoped<StudyOverviewService>();
 builder.Services.AddScoped<StudyBackupService>();
 builder.Services.AddScoped<IBackupFiles, BrowserBackupFiles>();
 

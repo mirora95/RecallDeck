@@ -18,6 +18,7 @@ public class NavigationTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddScoped<RecallDeck.UI.AppNavigation>();
         Services.AddScoped<RecallDeck.UI.AppLifecycle>();
+        Services.AddScoped<StudyOverviewService>();
         Services.AddSingleton<IStudyStore, InMemoryStudyStore>();
         Services.AddScoped<DeckService>();
         Services.AddSingleton(TimeProvider.System);
@@ -103,8 +104,9 @@ public class NavigationTests : BunitContext
             return;
         }
 
-        Assert.Contains(path == "/" ? "backups are available" : "not available yet", page.Find("main").TextContent);
-        Assert.Empty(page.FindAll("main input, main button"));
+        Assert.Contains(path == "/" ? "No cards are scheduled" : "No reviews saved yet", page.Find("main").TextContent);
+        Assert.Single(page.FindAll("#refresh-overview"));
+        Assert.Empty(page.FindAll("main input"));
     }
 
     [Fact]

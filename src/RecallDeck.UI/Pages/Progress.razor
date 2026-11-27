@@ -1,6 +1,61 @@
 @page "/progress"
+@inherits StudyOverviewPage
+@using RecallDeck.Core
 
 <PageTitle>Progress · RecallDeck</PageTitle>
 <h1 tabindex="-1">Progress</h1>
-<p class="lead">A simple view of your practice.</p>
-<p>Progress is not available yet. Local review history is planned for the first release. There are no practice results to show in this build.</p>
+<p class="lead">Your saved review history, on this device.</p>
+<div class="study-overview" aria-busy="@Loading">
+    <button id="refresh-overview" class="secondary" type="button" disabled="@Loading" @onclick="RefreshAsync">Refresh</button>
+    @if (Loading)
+    {
+        <p role="status">Loading your review history…</p>
+    }
+    else if (LoadFailed)
+    {
+        <div role="alert">
+            <p>We could not load your review history. Try again to read your saved data. Allow site storage in a browser. Do not clear this app's data.</p>
+            <button id="retry-overview" type="button" @onclick="RefreshAsync">Try again</button>
+        </div>
+    }
+    else if (Overview is { } summary)
+    {
+        <section aria-labelledby="totals-heading">
+            <h2 id="totals-heading">Saved ratings</h2>
+            <dl id="rating-totals" class="rating-totals">
+                <div><dt>Again</dt><dd id="again-total">@summary.AgainCount</dd></div>
+                <div><dt>Remembered</dt><dd id="remembered-total">@summary.RememberedCount</dd></div>
+            </dl>
+            <p class="note">Totals include all reviews currently saved here. Deleting a card or deck removes its review history. Restoring a backup replaces this history.</p>
+        </section>
+        <section aria-labelledby="recent-heading">
+            <h2 id="recent-heading">Most recent @StudyOverviewService.RecentLimit reviews</h2>
+            @if (summary.RecentReviews.Count == 0)
+            {
+                <p>No reviews saved yet. Reveal an answer in <a href="/review">Review</a>, then choose Again or Remembered to save a rating.</p>
+                <p><a class="study-action" href="/decks">Open your decks</a></p>
+            }
+            else
+            {
+                <ol id="recent-reviews" class="review-history">
+                    @foreach (var row in summary.RecentReviews)
+                    {
+                        <li class="history-row" @key="row.Event.Id">
+                            <p class="history-question card-text">@(row.Card?.Front ?? "Card unavailable")</p>
+                            @if (row.Deck is { } deck)
+                            {
+                                <a class="history-deck" href="@($"/decks/{deck.Id}")">@deck.Title</a>
+                            }
+                            else
+                            {
+                                <p>Deck unavailable</p>
+                            }
+                            <p class="history-detail"><span class="history-rating">@row.Event.Rating</span> · <time class="history-time" datetime="@row.Event.ReviewedAt.ToString("O")">@LocalDate(row.Event.ReviewedAt)</time></p>
+                        </li>
+                    }
+                </ol>
+                <p class="note">Newest reviews first. Dates use this device's local time and show its UTC offset. Questions and deck names show their current saved text.</p>
+            }
+        </section>
+    }
+</div>
