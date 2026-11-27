@@ -33,7 +33,10 @@ jobs:
       - run: npm test
       - run: dotnet build tests/RecallDeck.Web.Interop -c Release --verbosity minimal
       - run: dotnet publish src/RecallDeck.Web -c Release -o artifacts/web --verbosity minimal
+      - run: dotnet publish src/RecallDeck.Web -c Release -o artifacts/pwa-update -p:Version=1.0.0-pwa-update --verbosity minimal
       - name: Install pinned Playwright Core managed headless Chromium
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_GC: '1'
         run: npx --no-install playwright-core install --with-deps chromium --only-shell
       - name: Published web create, failure, retry, reload and cleanup
         shell: bash
@@ -56,6 +59,8 @@ jobs:
               raise SystemExit("Owned published server did not become ready")
           PY
           npm run test:ui -- web http://127.0.0.1:5189
+      - name: Published PWA offline use and safe waiting update
+        run: npm run test:pwa -- artifacts/web/wwwroot artifacts/pwa-update/wwwroot
 
   android:
     name: Android compile (no release signing)

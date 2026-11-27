@@ -79,7 +79,7 @@ The parent session supplied this local toolchain on 2026-11-27: .NET SDK 10.0.40
 
 At the infrastructure checkpoint, Release .NET tests passed 360/360, Node tests passed 63/63 and the isolated Android host compiled with zero warnings/errors. The parent owns final published-web, Android-runtime and independent-review evidence at the final source hash. Compilation never substitutes for emulator/device execution. Shipping normal-flow evidence and the isolated failure host are distinct.
 
-No physical-device, TalkBack, whole-lifecycle, offline or PWA-update coverage is claimed. Existing Android safe-area issue [#29](https://github.com/mirora95/RecallDeck/issues/29) remains separate. The GitHub token lacks Projects scopes: issue #16's intended In Progress move was not saved and must not be described as confirmed board status.
+This Sprint 1 driver claims no physical-device, TalkBack, whole-lifecycle, offline or PWA-update coverage. The separate [published PWA driver](pwa.md) checks offline browser use and waiting updates. Existing Android safe-area issue [#29](https://github.com/mirora95/RecallDeck/issues/29) remains separate. The GitHub token lacks Projects scopes: issue #16's intended In Progress move was not saved and must not be described as confirmed board status.
 
 ## Backup UI and file transport checks
 
