@@ -246,7 +246,16 @@ print(json.dumps({t.lower():[{k[0].lower()+k[1:]:r[k] for k in r.keys()} for r i
         await page.getByRole('button', { name: 'Edit card', exact: true }).click();
         await page.waitForFunction(front => document.querySelector('#editor-heading')?.textContent === 'Edit card' && document.querySelector('#card-front')?.value === front, editedFront);
         await page.locator('#card-front').fill('Unsaved synthetic edit');
+        await page.getByRole('link', { name: 'Review', exact: true }).click();
+        await page.locator('#leave-confirmation').waitFor();
+        assert.equal(await page.locator('#card-front').inputValue(), 'Unsaved synthetic edit');
+        assert.equal(new URL(page.url()).pathname, deckPath);
+        await page.locator('#stay-on-page').click();
+        await page.locator('#leave-confirmation').waitFor({ state: 'detached' });
+        assert.equal(await page.locator('#card-front').inputValue(), 'Unsaved synthetic edit');
         await page.getByRole('button', { name: 'Cancel edit', exact: true }).click();
+        await page.locator('#leave-confirmation').waitFor();
+        await page.locator('#leave-page').click();
         await cardsEqual(editedFront, editedBack);
         await page.getByRole('button', { name: 'Delete card', exact: true }).click();
         await page.locator('#delete-confirmation').waitFor();
@@ -254,7 +263,7 @@ print(json.dumps({t.lower():[{k[0].lower()+k[1:]:r[k] for k in r.keys()} for r i
         await page.locator('#delete-confirmation').waitFor({ state: 'detached' });
         await restart();
         await cardsEqual(editedFront, editedBack);
-        check('Cancel edit and keyboard Space cancel of card deletion preserve persisted values across restart/reload');
+        check('Dirty route navigation warns; Stay keeps exact input; explicit discard and keyboard Space cancel of card deletion preserve saved values across restart/reload');
         await assertOwned();
         await page.getByRole('button', { name: 'Delete card', exact: true }).click();
         assert((await page.locator('#delete-confirmation').textContent()).includes(editedFront));

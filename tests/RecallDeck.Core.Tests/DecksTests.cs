@@ -18,6 +18,90 @@ public class DecksTests : BunitContext
     }
 
     [Fact]
+    public async Task CleanRenameCancelKeepsUnrelatedCreateDraftButRouteLeaveWarns()
+    {
+        await store.Inner.CreateDeckAsync(new Deck(Guid.NewGuid(), "Biology"));
+        var page = Render<Decks>();
+        page.Find("#create-title").Input("Unrelated create draft");
+        page.Find(".deck-row button").Click();
+        page.Find("#rename-title").Input("Changed");
+        page.Find("#rename-title").Input("Biology");
+
+        page.Find("#rename-deck button[type='button']").Click();
+
+        Assert.Empty(page.FindAll("#leave-confirmation, #rename-deck"));
+        Assert.Equal("Unrelated create draft", page.Find("#create-title").GetAttribute("value"));
+        var navigation = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        await page.InvokeAsync(() => navigation.NavigateTo("/review"));
+        Assert.Single(page.FindAll("#leave-confirmation"));
+        Assert.Equal(0, store.UpdateCalls);
+    }
+
+    [Fact]
+    public async Task PendingCreateBlocksLeaveAndFailureStillWarnsBeforeDiscard()
+    {
+        var page = Render<Decks>();
+        var navigation = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        page.Find("#create-title").Input("Draft");
+        store.WriteGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = page.Find("#create-deck").SubmitAsync();
+        page.WaitForAssertion(() => Assert.Equal(1, store.CreateCalls));
+
+        await page.InvokeAsync(() => navigation.NavigateTo("/review"));
+
+        Assert.EndsWith("/", navigation.Uri);
+        Assert.Empty(page.FindAll("#leave-page"));
+        Assert.Contains("Wait for saving", page.Markup);
+        store.WriteGate.SetException(new IOException("private write"));
+        await pending;
+        Assert.Equal("Draft", page.Find("#create-title").GetAttribute("value"));
+        await page.InvokeAsync(() => navigation.NavigateTo("/review"));
+        Assert.Single(page.FindAll("#leave-confirmation"));
+        page.Find("#stay-on-page").Click();
+        store.WriteGate = null;
+        await page.Find("#create-deck").SubmitAsync();
+        await page.InvokeAsync(() => navigation.NavigateTo("/review"));
+        Assert.EndsWith("/review", navigation.Uri);
+        Assert.Single((await store.Inner.ReadSnapshotAsync()).Decks);
+        Assert.Equal(2, store.CreateCalls);
+    }
+
+    [Fact]
+    public async Task DirtyCreateBlocksNavigationAndStayKeepsExactInputBeforeLeave()
+    {
+        var page = Render<Decks>();
+        var navigation = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        page.Find("#create-title").Input("  Draft title  ");
+        page.Find("#create-description").Input("Exact draft");
+
+        await page.InvokeAsync(() => navigation.NavigateTo("/review"));
+
+        Assert.EndsWith("/", navigation.Uri);
+        Assert.Single(page.FindAll("#leave-confirmation"));
+        page.Find("#stay-on-page").Click();
+        Assert.Equal("  Draft title  ", page.Find("#create-title").GetAttribute("value"));
+        Assert.Equal("Exact draft", page.Find("#create-description").GetAttribute("value"));
+        Assert.Empty((await store.Inner.ReadSnapshotAsync()).Decks);
+        await page.InvokeAsync(() => navigation.NavigateTo("/review"));
+        page.Find("#leave-page").Click();
+        Assert.EndsWith("/review", navigation.Uri);
+    }
+
+    [Fact]
+    public async Task CleanOrRevertedDraftNavigatesWithoutWarning()
+    {
+        var page = Render<Decks>();
+        var navigation = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        page.Find("#create-title").Input("Draft");
+        page.Find("#create-title").Input("");
+
+        await page.InvokeAsync(() => navigation.NavigateTo("/review"));
+
+        Assert.EndsWith("/review", navigation.Uri);
+        Assert.Empty(page.FindAll("#leave-confirmation"));
+    }
+
+    [Fact]
     public void EmptyStateHasLabeledCreateFields()
     {
         var page = Render<Decks>();
@@ -161,6 +245,7 @@ public class DecksTests : BunitContext
         page.Find(".deck-row button").Click();
         page.Find("#rename-title").Input("Discarded");
         page.Find("#rename-deck button[type='button']").Click();
+        page.Find("#leave-page").Click();
         Assert.Empty(page.FindAll("#rename-deck"));
         Assert.Equal(renamed, Assert.Single((await store.Inner.ReadSnapshotAsync()).Decks));
     }

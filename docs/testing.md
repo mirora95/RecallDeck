@@ -41,7 +41,7 @@ A controlled failure overrides `IDBObjectStore.add` only for cards in the owned 
 
 ## Isolated Android UI failure host
 
-`tests/RecallDeck.Android.UiSmoke` runs production `RecallDeck.UI.App`, real `SqliteStudyStore` and the same application services/clock in its own test package, `io.github.mirora95.recalldeck.uismoke`. Its database is app-private `files/ui-smoke.db3`. The driver has no package override.
+`tests/RecallDeck.Android.UiSmoke` links the production MainPage XAML/native Back and resume bridge, and runs `RecallDeck.UI.App`, real `SqliteStudyStore` and the same application services/clock in its own test package, `io.github.mirora95.recalldeck.uismoke`. Its database is app-private `files/ui-smoke.db3`. The driver has no package override.
 
 The test-only `UiFailureStudyStore` wrapper recognizes `[RecallDeck synthetic failed save] ` at the start of the first created card front per process. It initializes the schema through the real adapter, installs a SQLite `BEFORE INSERT` trigger restricted to that validated card GUID, and uses `RAISE(ABORT, 'synthetic UI failure')`. It removes the trigger in `finally` before retry. Ordinary inputs delegate unchanged. The shipping app never references this wrapper; no production test API or new `InternalsVisibleTo` declaration is added.
 
@@ -79,7 +79,7 @@ The parent session supplied this local toolchain on 2026-11-27: .NET SDK 10.0.40
 
 At the infrastructure checkpoint, Release .NET tests passed 360/360, Node tests passed 63/63 and the isolated Android host compiled with zero warnings/errors. The parent owns final published-web, Android-runtime and independent-review evidence at the final source hash. Compilation never substitutes for emulator/device execution. Shipping normal-flow evidence and the isolated failure host are distinct.
 
-This Sprint 1 driver claims no physical-device, TalkBack, whole-lifecycle, offline or PWA-update coverage. The separate [published PWA driver](pwa.md) checks offline browser use and waiting updates. Existing Android safe-area issue [#29](https://github.com/mirora95/RecallDeck/issues/29) remains separate. The GitHub token lacks Projects scopes: issue #16's intended In Progress move was not saved and must not be described as confirmed board status.
+This Sprint 1 driver claims no physical-device, TalkBack, whole-lifecycle, offline or PWA-update coverage. The separate [published PWA driver](pwa.md) checks offline browser use and waiting updates. The [Android lifecycle implementation](android-lifecycle.md) has separate emulator acceptance for safe areas, Back and resume. The GitHub token lacks Projects scopes: issue #16's intended In Progress move was not saved and must not be described as confirmed board status.
 
 ## Backup UI and file transport checks
 

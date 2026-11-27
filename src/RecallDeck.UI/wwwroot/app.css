@@ -91,3 +91,7 @@ textarea { resize: vertical; }
 #empty-warning, #restore-warning { max-width: 65ch; }
 
 #pwa-status { width: min(100% - 2rem, 68rem); margin: 1rem auto; padding: 1rem; border: 1px solid #75867a; overflow-wrap: anywhere; }
+
+.leave-confirmation { border: 1px solid #75867a; padding: 1.5rem; margin-bottom: 2rem; }
+.leave-confirmation h2 { margin-bottom: .75rem; }
+.leave-confirmation button { min-height: 48px; }

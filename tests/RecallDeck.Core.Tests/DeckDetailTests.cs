@@ -16,11 +16,75 @@ public class DeckDetailTests : BunitContext
     public DeckDetailTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddScoped<RecallDeck.UI.AppNavigation>();
+        Services.AddScoped<RecallDeck.UI.AppLifecycle>();
         Services.AddSingleton<IStudyStore>(store);
         Services.AddSingleton<TimeProvider>(new FixedClock());
         Services.AddScoped<ReviewScheduler>();
         Services.AddScoped<CardService>();
         Services.AddScoped<DeckService>();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CardDraftStayKeepsExactInputAndFailedSaveDoesNotReleaseGuard(bool edit)
+    {
+        var deck = await SeedAsync(edit);
+        var page = Render<DeckDetail>(p => p.Add(x => x.DeckId, deck.Id));
+        if (edit) page.Find(".edit-card").Click();
+        Fill(page, "  Exact draft  ", "Answer");
+        store.Inner.BeforeNextCommit = () => throw new IOException("private write");
+        await page.Find("#card-editor").SubmitAsync();
+        var navigation = Services.GetRequiredService<NavigationManager>();
+
+        await page.InvokeAsync(() => navigation.NavigateTo("/review"));
+        page.Find("#stay-on-page").Click();
+
+        Assert.Equal("  Exact draft  ", page.Find("#card-front").GetAttribute("value"));
+        Assert.Equal("Answer", page.Find("#card-back").GetAttribute("value"));
+        Assert.Contains("could not save", page.Markup);
+        Assert.EndsWith("/", navigation.Uri);
+        await page.Find("#card-editor").SubmitAsync();
+        await page.InvokeAsync(() => navigation.NavigateTo("/review"));
+        Assert.EndsWith("/review", navigation.Uri);
+        Assert.Single((await store.Inner.ReadSnapshotAsync()).Cards);
+    }
+
+    [Fact]
+    public async Task RevertedCardEditLeavesWithoutWarningOrWrite()
+    {
+        var deck = await SeedAsync(true);
+        var page = Render<DeckDetail>(p => p.Add(x => x.DeckId, deck.Id));
+        page.Find(".edit-card").Click();
+        var original = page.Find("#card-front").GetAttribute("value");
+        page.Find("#card-front").Input("Changed");
+        page.Find("#card-front").Input(original!);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+
+        await page.InvokeAsync(() => navigation.NavigateTo("/review"));
+
+        Assert.EndsWith("/review", navigation.Uri);
+        Assert.Empty(page.FindAll("#leave-confirmation"));
+        Assert.Equal(0, store.Writes);
+    }
+
+    [Fact]
+    public async Task OpeningExistingCardOverDraftRequiresAnExplicitDiscard()
+    {
+        var deck = await SeedAsync(true);
+        var page = Render<DeckDetail>(p => p.Add(x => x.DeckId, deck.Id));
+        Fill(page, "New draft", "New answer");
+
+        page.Find(".edit-card").Click();
+
+        Assert.Single(page.FindAll("#leave-confirmation"));
+        page.Find("#stay-on-page").Click();
+        Assert.Equal("New draft", page.Find("#card-front").GetAttribute("value"));
+        page.Find(".edit-card").Click();
+        page.Find("#leave-page").Click();
+        Assert.Equal("Original", page.Find("#card-front").GetAttribute("value"));
+        Assert.Equal(0, store.Writes);
     }
 
     [Fact]
@@ -173,11 +237,12 @@ public class DeckDetailTests : BunitContext
         Fill(page, "Discarded", "Discarded");
 
         page.Find("#cancel-edit").Click();
+        page.Find("#leave-page").Click();
 
         Assert.Equal("Original", page.Find(".card-front").TextContent);
         Assert.Equal("", page.Find("#card-front").GetAttribute("value"));
         Assert.Equal(0, store.Writes);
-        Assert.Equal(2, JSInterop.Invocations["Blazor._internal.domWrapper.focus"].Count);
+        Assert.Equal(3, JSInterop.Invocations["Blazor._internal.domWrapper.focus"].Count);
     }
 
     [Theory]
@@ -306,7 +371,7 @@ public class DeckDetailTests : BunitContext
     }
 
     [Fact]
-    public async Task LeavingDetailDuringDeckDeleteKeepsNewPageAndCommittedDeletion()
+    public async Task PendingDeckDeleteBlocksLeavingUntilSuccessfulRedirect()
     {
         var deck = await SeedAsync(true);
         var navigation = Services.GetRequiredService<NavigationManager>();
@@ -318,7 +383,8 @@ public class DeckDetailTests : BunitContext
         page.WaitForAssertion(() => Assert.Equal(1, store.Writes));
 
         await page.InvokeAsync(() => navigation.NavigateTo("/progress"));
-        Assert.Equal("Progress", page.Find("h1").TextContent);
+        Assert.Equal(deck.Title, page.Find("h1").TextContent);
+        Assert.Contains("Wait for saving", page.Markup);
         var focusCalls = JSInterop.Invocations["Blazor._internal.domWrapper.focus"].Count;
         store.WriteGate.SetResult();
         await pending;
@@ -327,9 +393,9 @@ public class DeckDetailTests : BunitContext
         Assert.Empty(after.Decks);
         Assert.Empty(after.Cards);
         Assert.Empty(after.Reviews);
-        Assert.EndsWith("/progress", navigation.Uri);
-        Assert.Equal("Progress", page.Find("h1").TextContent);
-        Assert.Equal(focusCalls, JSInterop.Invocations["Blazor._internal.domWrapper.focus"].Count);
+        Assert.EndsWith("/decks", navigation.Uri);
+        Assert.Equal("Decks", page.Find("h1").TextContent);
+        Assert.True(JSInterop.Invocations["Blazor._internal.domWrapper.focus"].Count >= focusCalls);
         Assert.Empty(page.FindAll("#card-editor, #delete-confirmation, [role='alert']"));
     }
 

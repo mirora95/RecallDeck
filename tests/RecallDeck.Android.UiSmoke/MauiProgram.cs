@@ -15,6 +15,8 @@ public static class MauiProgram
         builder.Services.AddMauiBlazorWebView();
         builder.Services.AddBlazorWebViewDeveloperTools();
         builder.Services.AddSingleton<IStudyStore>(_ => new UiFailureStudyStore(Path.Combine(FileSystem.AppDataDirectory, "ui-smoke.db3")));
+        builder.Services.AddScoped<RecallDeck.UI.AppNavigation>();
+        builder.Services.AddScoped<RecallDeck.UI.AppLifecycle>();
         builder.Services.AddScoped<DeckService>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<ReviewScheduler>();

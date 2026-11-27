@@ -1,6 +1,9 @@
 @page "/decks"
 @using RecallDeck.Core
+@using RecallDeck.UI.Components
 @inject DeckService DeckService
+
+<UnsavedChanges @ref="unsaved" Dirty="@IsDirty" Busy="@saving" OnDiscarded="StateHasChanged" OnStayed="FocusEditorAsync" />
 
 <PageTitle>Decks · RecallDeck</PageTitle>
 <h1 tabindex="-1">Decks</h1>
@@ -27,7 +30,7 @@ else
                     <legend class="visually-hidden">New deck</legend>
                     <label for="create-title">Title</label>
                     <p id="create-title-hint" class="field-hint">Required · 1–80 characters</p>
-                    <input id="create-title" @bind="createTitle" @bind:event="oninput" required maxlength="80"
+                    <input id="create-title" @ref="createInput" @bind="createTitle" @bind:event="oninput" required maxlength="80"
                            aria-invalid="@(createTitleError is not null ? "true" : null)"
                            aria-describedby="@(createTitleError is null ? "create-title-hint" : "create-title-hint create-title-error")" />
                     @if (createTitleError is not null)
@@ -123,10 +126,15 @@ else
     private string? createError;
     private Guid? renamingId;
     private string renameTitle = "";
+    private string originalRenameTitle = "";
+    private UnsavedChanges? unsaved;
+    private bool IsDirty => createTitle.Length > 0 || createDescription.Length > 0 || (renamingId is not null && renameTitle != originalRenameTitle);
     private string? renameTitleError;
     private string? renameError;
     private string status = "";
+    private ElementReference createInput;
     private ElementReference renameInput;
+    private async Task FocusEditorAsync() => await (renamingId is null ? createInput : renameInput).FocusAsync();
     private ElementReference decksHeading;
     private bool focusPending;
 
@@ -195,12 +203,14 @@ else
 
         renamingId = deck.Id;
         focusPending = true;
-        renameTitle = deck.Title;
+        renameTitle = originalRenameTitle = deck.Title;
         renameTitleError = renameError = null;
         status = "";
     }
 
-    private void CancelRename()
+    private void CancelRename() => unsaved?.Confirm(DiscardRename, renamingId is not null && renameTitle != originalRenameTitle);
+
+    private void DiscardRename()
     {
         if (saving) return;
 

@@ -106,8 +106,13 @@ async function run(roots) {
         await page.locator('#create-title').fill(title);
         await page.locator('#create-description').fill('Owned offline fixture 日本語 😀');
         await page.getByRole('button', { name: 'Create deck', exact: true }).click();
-        await page.getByRole('link', { name: title, exact: true }).click();
-        const deckPath = new URL(page.url()).pathname;
+        const deckLink = page.getByRole('link', { name: title, exact: true });
+        const deckPath = await deckLink.getAttribute('href');
+        assert.match(deckPath, /^\/decks\/[0-9a-f-]{36}$/);
+        report.fixtureDeckPath = deckPath;
+        await deckLink.click();
+        await page.waitForURL(url => url.pathname === deckPath);
+        await page.locator('#card-front').waitFor();
         await page.locator('#card-front').fill('Offline question 日本語 😀');
         await page.locator('#card-back').fill('Offline answer\nSecond line');
         await page.getByRole('button', { name: 'Create card', exact: true }).click();
@@ -225,6 +230,9 @@ async function run(roots) {
     } catch (error) {
         report.result = 'FAIL';
         report.error = error.message;
+        report.pages = await Promise.all((browser?.contexts() ?? []).flatMap(context => context.pages()).map(async page => ({
+            url: page.url(), text: await page.locator('body').innerText().then(text => text.slice(0, 2400), () => 'Page unavailable')
+        })));
         process.exitCode = 1;
     } finally {
         try { await browser?.close(); }

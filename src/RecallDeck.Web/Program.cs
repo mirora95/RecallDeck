@@ -13,6 +13,8 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddScoped<IStudyStore, IndexedDbStudyStore>();
+builder.Services.AddScoped<RecallDeck.UI.AppNavigation>();
+builder.Services.AddScoped<RecallDeck.UI.AppLifecycle>();
 builder.Services.AddScoped<DeckService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ReviewScheduler>();
