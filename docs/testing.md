@@ -10,24 +10,42 @@ Use .NET SDK 10.0.401 (`global.json`), Node 22 or newer and Python 3.11 or newer
 dotnet test tests/RecallDeck.Core.Tests -c Release
 npm ci --ignore-scripts
 npm test
-python scripts/serve-published.py --self-test
+python3 scripts/serve-published.py --self-test
 node --check scripts/check-card-journey.mjs
 dotnet build tests/RecallDeck.Android.UiSmoke -c Debug -p:AndroidBuildApplicationPackage=false
 ```
 
 `npm test` retains the storage suite and adds two argument/refusal tests; it launches no browsers. `playwright-core` 1.65.1 is exact-pinned, test-only and Apache-2.0 licensed. Playwright is not included in the shipped app.
 
-## Published web journey
+## Headless browser setup
 
-Install the managed headless shell through the locally pinned CLI, then publish the actual web host:
+Use an existing compatible headless executable through `RECALLDECK_CHROMIUM_EXECUTABLE` when available. If the pinned CLI needs its managed Chromium shell, preserve other projects' cached browsers by setting `PLAYWRIGHT_SKIP_BROWSER_GC=1` before installation. Playwright documents this opt-out in [stale browser removal](https://playwright.dev/docs/browsers#stale-browser-removal). Run `npm ci --ignore-scripts` first; `--no-install` prevents an unpinned CLI fallback.
+
+POSIX shell (the Linux `--with-deps` option also installs required system libraries):
 
 ```sh
-npx --no-install playwright-core install --with-deps chromium --only-shell
-dotnet publish src/RecallDeck.Web -c Release -o artifacts/web
-python scripts/serve-published.py artifacts/web/wwwroot --port 5189
+PLAYWRIGHT_SKIP_BROWSER_GC=1 npx --no-install playwright-core install --with-deps chromium --only-shell
 ```
 
-In a second terminal:
+PowerShell on Windows:
+
+```powershell
+$env:PLAYWRIGHT_SKIP_BROWSER_GC = '1'
+npx --no-install playwright-core install chromium --only-shell
+```
+
+These commands install test-only browser binaries; they do not open a user browser/profile. No browser installation was needed for the recorded local recovery run.
+
+## Published web journey
+
+After [headless browser setup](#headless-browser-setup), publish the actual web host:
+
+```sh
+dotnet publish src/RecallDeck.Web -c Release -o artifacts/web
+python3 scripts/serve-published.py artifacts/web/wwwroot --port 5189
+```
+
+On Windows, use `python` instead of `python3` if that is the installed Python command. Keep the server running in its own terminal. In a second terminal:
 
 ```sh
 npm run test:ui -- web http://127.0.0.1:5189
@@ -77,7 +95,7 @@ JSON results go to stdout with actual Node/Playwright/browser versions, checks, 
 
 The parent session supplied this local toolchain on 2026-11-27: .NET SDK 10.0.401; Node 24.14.1; Playwright Core 1.65.1; installed Chromium headless 151.0.7922.34; JDK 21.0.11; ADB 1.0.41; Android 17/API 37 x86_64. Package-managed Chromium is 159.0.8154.6; CI reports the actually launched version in JSON. Installing a browser does not prove it ran.
 
-At the infrastructure checkpoint, Release .NET tests passed 360/360, Node tests passed 63/63 and the isolated Android host compiled with zero warnings/errors. The parent owns final published-web, Android-runtime and independent-review evidence at the final source hash. Compilation never substitutes for emulator/device execution. Shipping normal-flow evidence and the isolated failure host are distinct.
+At the infrastructure checkpoint, Release .NET tests passed 360/360, Node tests passed 63/63 and the isolated Android host compiled with zero warnings/errors. This is a historical infrastructure count, not the final suite size. The [recovery record](release-smoke-2026-11-27.md) records the later 483 .NET / 82 Node checks and exact tested application commit; [v0.1 readiness](v0.1-readiness.md) separates that evidence from the documentation/copy revision. Compilation never substitutes for emulator/device execution. Shipping normal-flow evidence and the isolated failure host are distinct.
 
 This Sprint 1 driver claims no physical-device, TalkBack, whole-lifecycle, offline or PWA-update coverage. The separate [published PWA driver](pwa.md) checks offline browser use and waiting updates. The [Android lifecycle implementation](android-lifecycle.md) has separate emulator acceptance for safe areas, Back and resume. The GitHub token lacks Projects scopes: issue #16's intended In Progress move was not saved and must not be described as confirmed board status.
 

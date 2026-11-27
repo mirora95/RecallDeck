@@ -4,16 +4,15 @@ Issue [#30](https://github.com/mirora95/RecallDeck/issues/30) audits the shared 
 
 ## Reproduce the browser checks
 
-Use the pinned Playwright Core and published host described in [testing.md](testing.md):
+Use the pinned Playwright Core, [guarded headless browser setup](testing.md#headless-browser-setup) and published host described in [testing.md](testing.md):
 
 ```sh
 npm ci --ignore-scripts
-npx --no-install playwright-core install --with-deps chromium --only-shell
 dotnet publish src/RecallDeck.Web -c Release -o artifacts/audit/web
-python scripts/serve-published.py artifacts/audit/web/wwwroot --port 5189
+python3 scripts/serve-published.py artifacts/audit/web/wwwroot --port 5189
 ```
 
-In another terminal:
+On Windows, use `python` instead of `python3` if that is the installed command. In another terminal:
 
 ```sh
 npm run test:accessibility -- http://127.0.0.1:5189
