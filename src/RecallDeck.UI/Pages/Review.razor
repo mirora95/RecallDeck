@@ -1,6 +1,211 @@
 @page "/review"
+@implements IDisposable
+@using RecallDeck.Core
+@using RecallDeck.Core.Storage
+@using RecallDeck.UI.Components
+@inject ReviewQueueService QueueService
+@inject IStudyStore Store
+@inject TimeProvider Clock
 
 <PageTitle>Review · RecallDeck</PageTitle>
 <h1 tabindex="-1">Review</h1>
 <p class="lead">A short return to what you are learning.</p>
-<p>Reviews are not available yet. Revealing an answer and choosing Again or Remembered are planned for the first release.</p>
+@if (loading)
+{
+    <p role="status">Loading due cards…</p>
+}
+else if (missingDeck)
+{
+    <h2>Deck unavailable</h2>
+    <p>This deck is no longer available. <a href="/decks">Return to your decks</a> to choose another one.</p>
+}
+else if (loadFailed)
+{
+    <div role="alert">
+        <p>We could not load your due cards. Try again to read your saved cards. @StorageRecovery</p>
+        <button id="retry-load" class="review-retry" type="button" @onclick="LoadAsync">Try again</button>
+    </div>
+}
+else if (queue.Count == 0)
+{
+    <h2>No cards due</h2>
+    <p>There are no cards due for review right now. <a href="/decks">Open your decks</a> to add cards or return later.</p>
+}
+else if (index >= queue.Count)
+{
+    <section aria-labelledby="complete-heading">
+        <h2 id="complete-heading" tabindex="-1" @ref="completionHeading">Session complete</h2>
+        <p id="review-summary" role="status">@reviewed reviewed · @skipped skipped (no longer available).</p>
+        <p>Your saved ratings set when these cards return. Cards added during this session wait for your next session.</p>
+        <a href="/decks">Return to your decks</a>
+    </section>
+}
+else
+{
+    <p id="review-progress" role="status">Card @(index + 1) of @queue.Count · @reviewed reviewed · @skipped skipped</p>
+    <ReviewCard @key="itemId" Card="queue[index]" Revealed="revealed" Busy="saving" RetryRequired="@(saveError is not null)"
+                OnReveal="Reveal" OnRate="RateAsync" />
+    @if (saveError is not null)
+    {
+        <div role="alert">
+            <p>@saveError</p>
+            <button id="retry-review" class="review-retry" type="button" disabled="@saving" @onclick="RetryAsync">@(saving ? "Saving…" : "Try again")</button>
+        </div>
+    }
+    <p role="status" aria-live="polite">@(saving ? "Saving review…" : status)</p>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "deck")] public Guid? DeckId { get; set; }
+
+    private const string StorageRecovery = "If storage is full, free space outside this app, then retry. In a browser, allow site storage. Do not clear this app's data.";
+    private IReadOnlyList<Card> queue = [];
+    private Guid? loadedDeckId;
+    private bool initialized;
+    private int version;
+    private int index;
+    private int reviewed;
+    private int skipped;
+    private bool loading = true;
+    private bool loadFailed;
+    private bool missingDeck;
+    private bool revealed;
+    private bool saving;
+    private Guid itemId = Guid.NewGuid();
+    private ReviewEvent? pendingReview;
+    private string? saveError;
+    private string status = "";
+    private bool focusCompletion;
+    private ElementReference completionHeading;
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (initialized && loadedDeckId == DeckId) return Task.CompletedTask;
+
+        initialized = true;
+        loadedDeckId = DeckId;
+        return LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var current = ++version;
+        loading = true;
+        loadFailed = missingDeck = false;
+        queue = [];
+        index = reviewed = skipped = 0;
+        ResetItem();
+        status = "";
+        try
+        {
+            var captured = await QueueService.CaptureAsync(DeckId);
+            if (current == version) queue = captured;
+        }
+        catch (KeyNotFoundException)
+        {
+            if (current == version) missingDeck = true;
+        }
+        catch (Exception)
+        {
+            if (current == version) loadFailed = true;
+        }
+        finally
+        {
+            if (current == version) loading = false;
+        }
+    }
+
+    private void Reveal()
+    {
+        if (!saving && !loading && index < queue.Count) revealed = true;
+    }
+
+    private Task RateAsync(ReviewRating rating)
+    {
+        if (!revealed || saving || loading || index >= queue.Count || saveError is not null) return Task.CompletedTask;
+
+        pendingReview = new ReviewEvent(Guid.NewGuid(), queue[index].Id, itemId, rating, Clock.GetUtcNow());
+        return SaveAsync();
+    }
+
+    private Task RetryAsync() => saving || pendingReview is null ? Task.CompletedTask : SaveAsync();
+
+    private async Task SaveAsync()
+    {
+        if (pendingReview is null) return;
+
+        saving = true;
+        var current = version;
+        var review = pendingReview;
+        try
+        {
+            var snapshot = await Store.ReadSnapshotAsync();
+            if (current != version) return;
+
+            // The session-item constraint is also the authority after an uncertain commit.
+            if (snapshot.Reviews.Any(saved => saved.SessionItemId == review.SessionItemId))
+            {
+                Advance(false);
+                return;
+            }
+
+            var card = snapshot.Cards.SingleOrDefault(card => card.Id == review.CardId);
+            if (card is null)
+            {
+                Advance(true);
+                return;
+            }
+
+            // A retry keeps its event time but schedules from the latest stored level.
+            var scheduler = new ReviewScheduler(new ReviewInstant(review.ReviewedAt));
+            await Store.ApplyReviewAsync(review, scheduler.Rate(card.Schedule, review.Rating));
+            if (current == version) Advance(false);
+        }
+        catch (Exception)
+        {
+            if (current == version)
+                saveError = "We could not save this review. Your answer is still here. Try again to safely retry the same rating. " + StorageRecovery;
+        }
+        finally
+        {
+            if (current == version) saving = false;
+        }
+    }
+
+    private void Advance(bool deleted)
+    {
+        if (deleted) skipped++;
+        else reviewed++;
+        index++;
+        ResetItem();
+        status = deleted ? "This card is no longer available and was skipped." : "Review saved.";
+        focusCompletion = index >= queue.Count;
+    }
+
+    private void ResetItem()
+    {
+        itemId = Guid.NewGuid();
+        pendingReview = null;
+        saveError = null;
+        revealed = saving = focusCompletion = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!focusCompletion) return;
+
+        focusCompletion = false;
+        await completionHeading.FocusAsync();
+    }
+
+    public void Dispose()
+    {
+        version++;
+        focusCompletion = false;
+    }
+
+    private sealed class ReviewInstant(DateTimeOffset instant) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => instant;
+    }
+}

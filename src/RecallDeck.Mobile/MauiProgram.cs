@@ -20,6 +20,7 @@ public static class MauiProgram
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<ReviewScheduler>();
         builder.Services.AddScoped<CardService>();
+        builder.Services.AddScoped<ReviewQueueService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

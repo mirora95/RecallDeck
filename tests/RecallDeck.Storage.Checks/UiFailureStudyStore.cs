@@ -9,6 +9,8 @@ namespace RecallDeck.Storage.Checks;
 public sealed class UiFailureStudyStore(string databasePath) : IStudyStore
 {
     public const string FailureMarker = "[RecallDeck synthetic failed save] ";
+    public const string ReviewFailureMarker = "[RecallDeck synthetic failed review] ";
+    private int reviewFailureUsed;
     private readonly SqliteStudyStore inner = new(databasePath);
 
     private int failureUsed;
@@ -44,5 +46,30 @@ public sealed class UiFailureStudyStore(string databasePath) : IStudyStore
     public Task DeleteDeckAsync(Guid id, CancellationToken cancellationToken = default) => inner.DeleteDeckAsync(id, cancellationToken);
     public Task UpdateCardAsync(Card card, CancellationToken cancellationToken = default) => inner.UpdateCardAsync(card, cancellationToken);
     public Task DeleteCardAsync(Guid id, CancellationToken cancellationToken = default) => inner.DeleteCardAsync(id, cancellationToken);
-    public Task ApplyReviewAsync(ReviewEvent review, ReviewSchedule schedule, CancellationToken cancellationToken = default) => inner.ApplyReviewAsync(review, schedule, cancellationToken);
+    public async Task ApplyReviewAsync(ReviewEvent review, ReviewSchedule schedule, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(review);
+        cancellationToken.ThrowIfCancellationRequested();
+        var snapshot = await inner.ReadSnapshotAsync(cancellationToken);
+        var card = snapshot.Cards.SingleOrDefault(card => card.Id == review.CardId);
+        if (card is null || !card.Front.StartsWith(ReviewFailureMarker, StringComparison.Ordinal) ||
+            Interlocked.CompareExchange(ref reviewFailureUsed, 1, 0) != 0)
+        {
+            await inner.ApplyReviewAsync(review, schedule, cancellationToken);
+            return;
+        }
+
+        // Abort history insertion after the schedule update, for this exact owned card only.
+        var trigger = "UiSmokeReviewFail_" + card.Id.ToString("N");
+        using var db = new SQLiteConnection(databasePath);
+        db.Execute($"CREATE TRIGGER {trigger} BEFORE INSERT ON Reviews WHEN NEW.CardId = '{card.Id:D}' BEGIN SELECT RAISE(ABORT, 'synthetic UI review failure'); END");
+        try
+        {
+            await inner.ApplyReviewAsync(review, schedule, cancellationToken);
+        }
+        finally
+        {
+            db.Execute($"DROP TRIGGER {trigger}");
+        }
+    }
 }
