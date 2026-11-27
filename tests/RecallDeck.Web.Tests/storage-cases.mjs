@@ -22,9 +22,9 @@ async function isolated(check) {
     }
 }
 
-async function seed(call) {
+async function seed(call, sourceCard = card) {
     equal(await call("createDeck", deck), {});
-    equal(await call("createCard", card), {});
+    equal(await call("createCard", sourceCard), {});
 }
 
 const read = call => call("read");
@@ -211,15 +211,6 @@ export const cases = [
         await reject(call, "updateCard", { ...card, schedule: next }, "invalid");
         equal(await read(call), before);
     })],
-    ["review persists together and duplicate session cannot rate twice", () => isolated(async call => {
-        await seed(call);
-        equal(await call("applyReview", review, next), {});
-        const after = { decks: [deck], cards: [{ ...card, schedule: next }], reviews: [review] };
-        equal(await read(call), after);
-        await reject(call, "applyReview", { ...review, sessionItemId: "other" }, "duplicate", schedule);
-        await reject(call, "applyReview", { ...review, id: "other" }, "duplicate", schedule);
-        equal(await read(call), after);
-    })],
     ["empty deck deletion retains other cards and history", () => isolated(async call => {
         await seed(call);
         await call("applyReview", review, next);
@@ -242,34 +233,6 @@ export const cases = [
         await call("applyReview", review, next);
         await call("deleteDeck", deck.id);
         equal(await read(call), { decks: [other], cards: [], reviews: [] });
-    })],
-    ["failed second write rolls back schedule and allows same review retry", () => isolated(async call => {
-        await seed(call);
-        const before = await read(call);
-        const add = IDBObjectStore.prototype.add;
-        try {
-            IDBObjectStore.prototype.add = function (...args) {
-                if (this.name === "reviews") throw new DOMException("Injected quota", "QuotaExceededError");
-                return add.apply(this, args);
-            };
-            await reject(call, "applyReview", review, "quota", next);
-        } finally { IDBObjectStore.prototype.add = add; }
-        equal(await read(call), before);
-        equal(await call("applyReview", review, next), {});
-        equal((await read(call)).reviews, [review]);
-    })],
-    ["asynchronous request error rolls back an earlier successful write", () => isolated(async call => {
-        await seed(call);
-        await call("applyReview", review, next);
-        const before = await read(call);
-        const add = IDBObjectStore.prototype.add;
-        try {
-            IDBObjectStore.prototype.add = function (value) {
-                return add.call(this, this.name === "reviews" ? review : value);
-            };
-            await reject(call, "applyReview", { ...review, id: "other", sessionItemId: "other" }, "duplicate", schedule);
-        } finally { IDBObjectStore.prototype.add = add; }
-        equal(await read(call), before);
     })],
     ["concurrent connections do not overwrite unrelated commits", () => isolated(async call => {
         const results = await Promise.all(Array.from({ length: 8 }, (_, i) => call("createDeck", { ...deck, id: `deck-${i}` })));
@@ -318,8 +281,68 @@ export const cases = [
         equal((await pending.finish()).error, "canceled");
         equal((await read(call)).cards, [card]);
     })],
-    ["cancel after both review requests succeed rolls back and permits retry", () => isolated(async (call, name) => {
-        await seed(call);
+    ["cancel after commit reports the actual successful outcome", () => isolated(async (call, name) => {
+        const pending = start(name, "createDeck", deck);
+        equal(await pending.finish(), {});
+        pending.cancel();
+        equal(await pending.finish(), {});
+        equal((await read(call)).decks, [deck]);
+    })]
+];
+
+for (const [label, rating, expectedSchedule] of [
+    ["Again", 0, { level: 0, dueAt: "2026-11-04T14:10:00+00:00" }],
+    ["Remembered", 1, { level: 3, dueAt: "2026-11-11T14:00:00+00:00" }]
+]) {
+    const sourceCard = { ...card, schedule: { level: 2, dueAt: now } };
+    const event = { ...review, rating };
+    const afterReview = { decks: [deck], cards: [{ ...sourceCard, schedule: expectedSchedule }], reviews: [event] };
+
+    cases.push([`${label}: schedule and one event commit together; duplicate identities preserve state`, () => isolated(async call => {
+        await seed(call, sourceCard);
+        const before = await read(call);
+
+        equal(await call("applyReview", event, expectedSchedule), {});
+        equal(await read(call), afterReview);
+        equal(before, { decks: [deck], cards: [sourceCard], reviews: [] });
+
+        await reject(call, "applyReview", { ...event, sessionItemId: "other" }, "duplicate", sourceCard.schedule);
+        equal(await read(call), afterReview);
+
+        await reject(call, "applyReview", { ...event, id: "other" }, "duplicate", sourceCard.schedule);
+        equal(await read(call), afterReview);
+    })]);
+    cases.push([`${label}: failed second write rolls back and same event retry commits once`, () => isolated(async call => {
+        await seed(call, sourceCard);
+        const before = await read(call);
+        const add = IDBObjectStore.prototype.add;
+        try {
+            IDBObjectStore.prototype.add = function (...args) {
+                if (this.name === "reviews") throw new DOMException("Injected quota", "QuotaExceededError");
+                return add.apply(this, args);
+            };
+            await reject(call, "applyReview", event, "quota", expectedSchedule);
+        } finally { IDBObjectStore.prototype.add = add; }
+        equal(await read(call), before);
+
+        equal(await call("applyReview", event, expectedSchedule), {});
+        equal(await read(call), afterReview);
+    })]);
+    cases.push([`${label}: asynchronous request error rolls back an earlier successful write`, () => isolated(async call => {
+        await seed(call, sourceCard);
+        equal(await call("applyReview", event, expectedSchedule), {});
+        const before = await read(call);
+        const add = IDBObjectStore.prototype.add;
+        try {
+            IDBObjectStore.prototype.add = function (value) {
+                return add.call(this, this.name === "reviews" ? event : value);
+            };
+            await reject(call, "applyReview", { ...event, id: "other", sessionItemId: "other" }, "duplicate", sourceCard.schedule);
+        } finally { IDBObjectStore.prototype.add = add; }
+        equal(await read(call), before);
+    })]);
+    cases.push([`${label}: cancel after both requests succeed rolls back and same event retry commits once`, () => isolated(async (call, name) => {
+        await seed(call, sourceCard);
         const before = await read(call);
         const add = IDBObjectStore.prototype.add;
         let pending;
@@ -329,20 +352,30 @@ export const cases = [
                 if (this.name === "reviews") request.addEventListener("success", () => pending.cancel());
                 return request;
             };
-            pending = start(name, "applyReview", review, next);
+            pending = start(name, "applyReview", event, expectedSchedule);
             equal((await pending.finish()).error, "canceled");
         } finally { IDBObjectStore.prototype.add = add; }
         equal(await read(call), before);
-        equal(await call("applyReview", review, next), {});
-    })],
-    ["cancel after commit reports the actual successful outcome", () => isolated(async (call, name) => {
-        const pending = start(name, "createDeck", deck);
-        equal(await pending.finish(), {});
-        pending.cancel();
-        equal(await pending.finish(), {});
-        equal((await read(call)).decks, [deck]);
-    })]
-];
+
+        equal(await call("applyReview", event, expectedSchedule), {});
+        equal(await read(call), afterReview);
+    })]);
+    cases.push([`${label}: deleted card cannot be reviewed or change remaining data`, () => isolated(async call => {
+        await seed(call, sourceCard);
+        const remaining = { ...sourceCard, id: "remaining-card" };
+        const remainingReview = { ...event, id: "remaining-review", cardId: remaining.id, sessionItemId: "remaining-session" };
+        equal(await call("createCard", remaining), {});
+        equal(await call("applyReview", remainingReview, expectedSchedule), {});
+        equal(await call("applyReview", event, expectedSchedule), {});
+        equal(await call("deleteCard", sourceCard.id), {});
+        const before = await read(call);
+
+        await reject(call, "applyReview", { ...event, id: "late-review", sessionItemId: "late-session" }, "missing", expectedSchedule);
+
+        equal(await read(call), before);
+        equal(before, { decks: [deck], cards: [{ ...remaining, schedule: expectedSchedule }], reviews: [remainingReview] });
+    })]);
+}
 
 for (const operation of ["createDeck", "updateDeck", "deleteDeck", "createCard", "updateCard", "deleteCard", "applyReview"]) {
     cases.push([`${operation}: cancellation inside transaction rolls back`, () => isolated(async (call, name) => {

@@ -74,35 +74,40 @@ public abstract class StudyStoreContractTests
         AssertUnchanged(before, await store.ReadSnapshotAsync());
     }
 
-    [Fact]
-    public async Task ReviewChangesScheduleAndAppendsOneEventTogether()
+    [Theory]
+    [InlineData(ReviewRating.Again)]
+    [InlineData(ReviewRating.Remembered)]
+    public async Task ReviewChangesScheduleAndAppendsOneEventTogether(ReviewRating rating)
     {
         var store = CreateStore().Store;
-        var (_, card) = await SeedAsync(store);
-        var review = NewReview(card.Id);
-        var schedule = new ReviewSchedule(1, Now.AddDays(1));
+        var (deck, card) = await SeedAsync(store, level: 2);
+        var before = await store.ReadSnapshotAsync();
+        var review = NewReview(card.Id, rating);
+        var schedule = ExpectedReviewSchedule(rating);
 
         await store.ApplyReviewAsync(review, schedule);
         var snapshot = await store.ReadSnapshotAsync();
 
-        Assert.Equal(schedule, Assert.Single(snapshot.Cards).Schedule);
-        Assert.Equal(card.Front, snapshot.Cards[0].Front);
-        Assert.Equal(card.DeckId, snapshot.Cards[0].DeckId);
-        Assert.Equal(review, Assert.Single(snapshot.Reviews));
+        AssertReviewApplied(deck, card, review, schedule, snapshot);
+        Assert.Equal(card, Assert.Single(before.Cards));
+        Assert.Empty(before.Reviews);
     }
 
-    [Fact]
-    public async Task DuplicateReviewIdentityOrSessionItemDoesNotRateTwice()
+    [Theory]
+    [InlineData(ReviewRating.Again)]
+    [InlineData(ReviewRating.Remembered)]
+    public async Task DuplicateReviewIdentityOrSessionItemDoesNotRateTwice(ReviewRating rating)
     {
         var store = CreateStore().Store;
-        var (_, card) = await SeedAsync(store);
-        var review = NewReview(card.Id);
-        await store.ApplyReviewAsync(review, new ReviewSchedule(1, Now.AddDays(1)));
+        var (_, card) = await SeedAsync(store, level: 2);
+        var review = NewReview(card.Id, rating);
+        await store.ApplyReviewAsync(review, ExpectedReviewSchedule(rating));
         var before = await store.ReadSnapshotAsync();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyReviewAsync(new ReviewEvent(review.Id, card.Id, Guid.NewGuid(), ReviewRating.Again, Now), new ReviewSchedule(0, Now)));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyReviewAsync(new ReviewEvent(Guid.NewGuid(), card.Id, review.SessionItemId, ReviewRating.Again, Now), new ReviewSchedule(0, Now)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyReviewAsync(new ReviewEvent(review.Id, card.Id, Guid.NewGuid(), rating, Now), card.Schedule));
+        AssertUnchanged(before, await store.ReadSnapshotAsync());
 
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.ApplyReviewAsync(new ReviewEvent(Guid.NewGuid(), card.Id, review.SessionItemId, rating, Now), card.Schedule));
         AssertUnchanged(before, await store.ReadSnapshotAsync());
     }
 
@@ -148,14 +153,16 @@ public abstract class StudyStoreContractTests
         AssertUnchanged(before, await harness.Store.ReadSnapshotAsync());
     }
 
-    [Fact]
-    public async Task CancellationAtCommitDoesNotPublishHalfAReviewAndRetrySucceeds()
+    [Theory]
+    [InlineData(ReviewRating.Again)]
+    [InlineData(ReviewRating.Remembered)]
+    public async Task CancellationAtCommitDoesNotPublishHalfAReviewAndRetrySucceeds(ReviewRating rating)
     {
         var harness = CreateStore();
-        var (_, card) = await SeedAsync(harness.Store);
+        var (deck, card) = await SeedAsync(harness.Store, level: 2);
         var before = await harness.Store.ReadSnapshotAsync();
-        var review = NewReview(card.Id);
-        var schedule = new ReviewSchedule(1, Now.AddDays(1));
+        var review = NewReview(card.Id, rating);
+        var schedule = ExpectedReviewSchedule(rating);
         using var cancellation = new CancellationTokenSource();
         harness.BeforeNextCommit(cancellation.Cancel);
 
@@ -163,26 +170,47 @@ public abstract class StudyStoreContractTests
         AssertUnchanged(before, await harness.Store.ReadSnapshotAsync());
 
         await harness.Store.ApplyReviewAsync(review, schedule);
-        Assert.Equal(review, Assert.Single((await harness.Store.ReadSnapshotAsync()).Reviews));
+        AssertReviewApplied(deck, card, review, schedule, await harness.Store.ReadSnapshotAsync());
     }
 
-    [Fact]
-    public async Task FailedReviewCanRetryTheSameEventWithoutPartialHistory()
+    [Theory]
+    [InlineData(ReviewRating.Again)]
+    [InlineData(ReviewRating.Remembered)]
+    public async Task FailedReviewCanRetryTheSameEventWithoutPartialHistory(ReviewRating rating)
     {
         var harness = CreateStore();
-        var (_, card) = await SeedAsync(harness.Store);
+        var (deck, card) = await SeedAsync(harness.Store, level: 2);
         var before = await harness.Store.ReadSnapshotAsync();
-        var review = NewReview(card.Id);
-        var schedule = new ReviewSchedule(1, Now.AddDays(1));
+        var review = NewReview(card.Id, rating);
+        var schedule = ExpectedReviewSchedule(rating);
         harness.BeforeNextCommit(() => throw new IOException("Injected review failure"));
 
         await Assert.ThrowsAsync<IOException>(() => harness.Store.ApplyReviewAsync(review, schedule));
         AssertUnchanged(before, await harness.Store.ReadSnapshotAsync());
 
         await harness.Store.ApplyReviewAsync(review, schedule);
-        var after = await harness.Store.ReadSnapshotAsync();
-        Assert.Equal(schedule, Assert.Single(after.Cards).Schedule);
-        Assert.Equal(review, Assert.Single(after.Reviews));
+        AssertReviewApplied(deck, card, review, schedule, await harness.Store.ReadSnapshotAsync());
+    }
+
+    [Theory]
+    [InlineData(ReviewRating.Again)]
+    [InlineData(ReviewRating.Remembered)]
+    public async Task DeletedCardCannotBeReviewedOrChangeRemainingData(ReviewRating rating)
+    {
+        var store = CreateStore().Store;
+        var (deck, card) = await SeedAsync(store, level: 2);
+        var remaining = new Card(Guid.NewGuid(), deck.Id, "Other question", "Other answer", card.Schedule);
+        await store.CreateCardAsync(remaining);
+        await store.ApplyReviewAsync(NewReview(remaining.Id), ExpectedReviewSchedule(ReviewRating.Remembered));
+        await store.ApplyReviewAsync(NewReview(card.Id), ExpectedReviewSchedule(ReviewRating.Remembered));
+        await store.DeleteCardAsync(card.Id);
+        var before = await store.ReadSnapshotAsync();
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => store.ApplyReviewAsync(NewReview(card.Id, rating), ExpectedReviewSchedule(rating)));
+
+        AssertUnchanged(before, await store.ReadSnapshotAsync());
+        Assert.Equal(remaining.Id, Assert.Single(before.Cards).Id);
+        Assert.Equal(remaining.Id, Assert.Single(before.Reviews).CardId);
     }
 
     [Fact]
@@ -245,17 +273,30 @@ public abstract class StudyStoreContractTests
         AssertUnchanged(before, await harness.Store.ReadSnapshotAsync());
     }
 
-    private static async Task<(Deck Deck, Card Card)> SeedAsync(IStudyStore store)
+    private static async Task<(Deck Deck, Card Card)> SeedAsync(IStudyStore store, int level = 0)
     {
         var deck = new Deck(Guid.NewGuid(), "日本語 😀", "Description");
-        var card = new Card(Guid.NewGuid(), deck.Id, "question\nsecond line", "answer", new ReviewSchedule(0, Now));
+        var card = new Card(Guid.NewGuid(), deck.Id, "question\nsecond line", "answer", new ReviewSchedule(level, Now));
         await store.CreateDeckAsync(deck);
         await store.CreateCardAsync(card);
         return (deck, card);
     }
 
-    private static ReviewEvent NewReview(Guid cardId)
-        => new(Guid.NewGuid(), cardId, Guid.NewGuid(), ReviewRating.Remembered, Now);
+    private static ReviewEvent NewReview(Guid cardId, ReviewRating rating = ReviewRating.Remembered)
+        => new(Guid.NewGuid(), cardId, Guid.NewGuid(), rating, Now);
+
+    private static ReviewSchedule ExpectedReviewSchedule(ReviewRating rating)
+        => rating == ReviewRating.Again
+            ? new ReviewSchedule(0, new DateTimeOffset(2026, 11, 1, 14, 10, 0, TimeSpan.Zero))
+            : new ReviewSchedule(3, new DateTimeOffset(2026, 11, 8, 14, 0, 0, TimeSpan.Zero));
+
+    private static void AssertReviewApplied(Deck deck, Card card, ReviewEvent review, ReviewSchedule schedule, StudySnapshot snapshot)
+    {
+        Assert.Equal(deck, Assert.Single(snapshot.Decks));
+        Assert.Equal(new Card(card.Id, card.DeckId, card.Front, card.Back, schedule), Assert.Single(snapshot.Cards));
+        Assert.Equal(TimeSpan.Zero, snapshot.Cards[0].Schedule.DueAt.Offset);
+        Assert.Equal(review, Assert.Single(snapshot.Reviews));
+    }
 
     private static Task WriteAsync(IStudyStore store, string operation, Deck deck, Card card, CancellationToken cancellationToken = default)
         => operation switch

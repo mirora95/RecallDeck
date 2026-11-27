@@ -1,6 +1,6 @@
 # Study storage behavior
 
-`RecallDeck.Core.Storage.IStudyStore` defines the behavior that Android SQLite and browser IndexedDB adapters must implement. It has no platform or database dependency. The in-memory implementation is **test-only**. The web host registers `IndexedDbStudyStore`; shared feature screens and Android persistence remain separate tasks.
+`RecallDeck.Core.Storage.IStudyStore` defines the behavior that Android SQLite and browser IndexedDB adapters must implement. It has no platform or database dependency. The in-memory implementation is **test-only**. The web host registers `IndexedDbStudyStore`; the Android host registers `SqliteStudyStore`. Shared review screens remain a separate task.
 
 ## Operations
 
@@ -29,6 +29,8 @@ A snapshot copies its input collections into read-only lists, and the contained 
 `tests/RecallDeck.Core.Tests/Storage/StudyStoreContractTests.cs` is an inherited xUnit fixture. Each adapter test class supplies an isolated store and a test-only way to inject a failure or cancellation immediately before transaction commit. Run the same cases for each adapter; use a temporary SQLite file or isolated IndexedDB database rather than learner data. Add provider-specific reopen, quota, unavailable-storage and migration checks in those adapter tasks.
 
 The current `InMemoryStudyStoreTests` factory runs these cases against a staged in-memory reference implementation. It copies state under a lock, applies the mutation to that candidate, invokes a one-shot test fault hook, checks cancellation, then publishes a new snapshot. Failed writes therefore cannot leak partially changed lists. This proves the fixture and application behavior; it does not prove disk/browser durability, multi-process coordination or platform lifecycle behavior.
+
+The shared .NET contract runs against both the in-memory reference and production SQLite adapter. It verifies Again and Remembered from level 2 with explicit UTC schedules (level 0 after ten minutes; level 3 after seven days), complete card/deck preservation and exactly one matching event. For both ratings, duplicate identities leave every collection unchanged, injected commit failure and cancellation roll back before retrying the same event, and an actually deleted card cannot change remaining cards/history. The IndexedDB shared cases exercise the same acceptance behavior, including a failure after the schedule write and cancellation after both requests succeed. These storage tests supply the scheduler's expected result; interval calculation is covered separately by `ReviewSchedulerTests`.
 
 Run `dotnet test tests/RecallDeck.Core.Tests -c Release`. The Core .NET suite uses the existing packages; browser test dependencies are described below.
 
