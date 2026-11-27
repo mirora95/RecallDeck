@@ -24,7 +24,7 @@ dotnet publish src/RecallDeck.Web -c Release -o artifacts/pwa-update -p:Version=
 npm run test:pwa -- artifacts/pwa/wwwroot artifacts/pwa-update/wwwroot
 ~~~
 
-If needed, install the pinned headless browser with PLAYWRIGHT_SKIP_BROWSER_GC=1 set before running npx --no-install playwright-core install --with-deps chromium --only-shell. RECALLDECK_CHROMIUM_EXECUTABLE can select an existing compatible headless executable. This uses no user browser/profile, desktop input, external origin or Android device.
+Use the [guarded headless browser setup](testing.md#headless-browser-setup) for PowerShell/POSIX commands if installation is needed; it sets `PLAYWRIGHT_SKIP_BROWSER_GC=1` to preserve existing caches. `RECALLDECK_CHROMIUM_EXECUTABLE` can select an existing compatible headless executable. This uses no user browser/profile, desktop input, external origin or Android device.
 
 The driver accepts two distinct publish roots contained in this repository's ignored artifacts directory, checks real asset manifests with different versions, then creates its own loopback server on a free port. It switches the server's published root between the two builds, leaving source and artifacts unchanged. Browser contexts, downloads and the owned server close after the run; results are JSON text and no screenshots are created.
 

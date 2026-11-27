@@ -2,11 +2,11 @@
 
 Build a habit of remembering what you learn, one short review at a time.
 
-RecallDeck is an offline-first study app planned for **Android (.NET MAUI Blazor Hybrid)** and the **web (Blazor WebAssembly PWA)**. Create decks, write question-and-answer cards, and review cards when they become due.
+RecallDeck is an offline-first study app for **Android (.NET MAUI Blazor Hybrid)** and the **web (Blazor WebAssembly PWA)**. Create decks, write question-and-answer cards, and review cards when they become due.
 
 **Status: deck/card management, due summaries, reveal-first reviews, local review history and JSON backup/restore.** Android and web hosts share an accessible shell with Home, Decks, deck detail, Review, Progress and Backup routes. Home shows total and per-deck due counts; Progress shows actual saved ratings and recent reviews. Navigation includes a skip link and visible keyboard focus. Unexpected page errors offer retry without exposing exception details. Core validation, UTC scheduling, deck/card operations and the storage contract are implemented. The shared Decks page lists, creates and renames decks using transactional IndexedDB on the web and app-private SQLite on Android. Open a deck title to create, edit or explicitly confirm deletion of its cards. Deck deletion shows its current card count and atomically removes cards and history. Labeled forms show inline validation, preserve failed input for retry and prevent duplicate submissions while saving. Review opens a captured due queue, reveals each answer only on request, then offers Again or Remembered. Saved ratings leave this session; failed ratings retain the answer for a safe retry. Completion reports reviewed and skipped cards. Backup exports dated versioned JSON, checks selected files up to 10 MiB, previews counts and requires explicit confirmation to replace all current study data. Export is offered before restore; cancel writes nothing and failed restore retains its preview for retry. Follow the [issues](https://github.com/mirora95/RecallDeck/issues) and [roadmap](docs/roadmap.md) for progress. There is no public deployment or release download yet.
 
-## First release
+## v0.1 scope
 
 - Create and organize decks and plain-text cards.
 - Reveal an answer before choosing **Again** or **Remembered**.
@@ -16,7 +16,9 @@ RecallDeck is an offline-first study app planned for **Android (.NET MAUI Blazor
 
 Accounts, cloud sync, AI-generated cards and paid integrations are outside the first release. Browser storage may be cleared or evicted; exportable backups are part of the release criteria.
 
-Android route Back and unsaved-edit confirmation, keyboard/system safe areas and read-only resume refresh are described in [Android lifecycle](docs/android-lifecycle.md). Active review queues keep their captured cards and revealed/pending state across resume. Emulator runtime evidence remains a separate release gate from compilation.
+Android route Back and unsaved-edit confirmation, keyboard/system safe areas and read-only resume refresh are described in [Android lifecycle](docs/android-lifecycle.md). Active review queues keep their captured cards and revealed/pending state across resume. Emulator runtime evidence is recorded separately from compilation in the [readiness record](docs/v0.1-readiness.md).
+
+Current readiness, architecture decisions, privacy limits and [draft v0.1 release notes](docs/v0.1-readiness.md) are documented with exact tested application revisions. The recovery run passed on Chromium and an Android emulator; it is not certification for every browser or device. No release download, store release or public deployment has been published.
 
 ## Architecture
 
@@ -46,7 +48,7 @@ Open **Backup → Export current data** to save a dated `recalldeck-YYYY-MM-DD.j
 
 Choose **Choose backup file** to select a RecallDeck JSON document. The transport reads no more than 10 MiB plus one sentinel byte; the complete versioned content is validated before preview. Review the deck/card/review counts, export current data if needed, then choose **Replace all current data** once to replace every deck, card, schedule and review. A valid empty backup removes all current study data and has an extra warning. **Cancel restore** makes no storage write. A failed restore keeps the checked preview for an explicit retry.
 
-Web data belongs to the current origin and browser profile. Clearing site data or browser eviction can remove it, so keep backups outside the app. Android uses `ACTION_CREATE_DOCUMENT` / `ACTION_OPEN_DOCUMENT` with JSON MIME and user-selected URI streams. No broad media/storage permission, account or external sharing app is required. These workflows are implemented; final browser/device runtime evidence is recorded separately from automated tests and compilation. See the [backup format](docs/backup-format.md).
+Web data belongs to the current origin and browser profile. Clearing site data or browser eviction can remove it, so keep backups outside the app. Android uses `ACTION_CREATE_DOCUMENT` / `ACTION_OPEN_DOCUMENT` with JSON MIME and user-selected URI streams. No broad media/storage permission, account or external sharing app is required. The [cross-platform recovery record](docs/release-smoke-2026-11-27.md) documents actual browser and Android emulator file journeys separately from automated tests and compilation. See the [backup format](docs/backup-format.md).
 
 ## Run and verify
 
@@ -54,7 +56,7 @@ The [Sprint 1 web/Android persistence journey](docs/testing.md) provides repeata
 
 The [Android SQLite adapter and runtime smoke instructions](docs/sqlite-storage.md) cover native persistence, process restart and rollback. The shipping MAUI host registers the adapter with an app-private database path; the shared deck, card and review pages use this registration. Home due summaries and Progress read one saved snapshot per refresh and display local dates with explicit UTC offsets. See [local progress](docs/local-progress.md) for the counting, history and refresh rules. Backup uses browser file selection/download and Android system document save/open; both hosts share validation, preview and confirmed atomic replacement.
 
-Install the .NET **10.0.401 SDK** pinned in `global.json`. From the repository root:
+Install the .NET **10.0.401 SDK** pinned in `global.json`, Node 22 or later and Python 3.11 or later for the verification scripts. From the repository root (the following .NET/Node commands work in PowerShell and POSIX shells):
 
 ```sh
 dotnet test tests/RecallDeck.Core.Tests -c Release
@@ -76,7 +78,7 @@ dotnet workload install maui-android --skip-manifest-update
 dotnet build src/RecallDeck.Mobile -c Debug -p:AndroidBuildApplicationPackage=false
 ```
 
-See [Android toolchain and coverage](docs/android-toolchain.md) for SDK/JDK path overrides. CI runs the shared render test, publishes web assets and compiles Android on pull requests and `main`. Compilation does not verify an Android emulator/device; runtime and full user-flow checks remain separate release requirements.
+See [Android toolchain and coverage](docs/android-toolchain.md) for SDK/JDK path overrides. CI runs the shared render test, publishes web assets and compiles Android on pull requests and `main`. Compilation does not verify an Android emulator/device. The [readiness record](docs/v0.1-readiness.md) links the completed emulator/browser journeys and states their limits; physical-device and TalkBack testing are not claimed.
 
 ## Delivery
 

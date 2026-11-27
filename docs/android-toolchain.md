@@ -30,7 +30,7 @@ On a Windows Visual Studio installation, the Android SDK is commonly under `C:\P
 
 The compile command builds Android Debug assemblies without creating an application package or configuring release signing. It does not prove the app launches, renders correctly on Android WebView, handles back navigation or survives suspend/resume. No Android device or emulator was available in the initial local session; do not describe that session as an Android runtime test.
 
-The first shared landing component is covered by an HTML render test and a web browser smoke check. Before a release, use an emulator/device to verify the complete journeys specified in the roadmap. Android lifecycle and recovery issues carry their own runtime acceptance criteria.
+The current shared study flows have automated component coverage and published browser checks. The [2026-11-27 recovery record](release-smoke-2026-11-27.md) documents actual Android 17/API 37 x86_64 emulator recovery and restart coverage; [v0.1 readiness](v0.1-readiness.md) links lifecycle/accessibility evidence and records remaining limits. The initial no-emulator checkpoint above remains historical. No physical-device, TalkBack or Release/signing certification is claimed.
 
 ## Primary references
 

@@ -12,6 +12,10 @@ Goal: build both hosts and create, edit and persist decks/cards through the shar
 
 Goal: complete the reveal/rate review loop, local progress and versioned backup/restore. Verify offline web and Android lifecycle behavior, then assess v0.1 readiness. Pull eligible next-sprint tasks early only after current-sprint dependencies are complete.
 
+## v0.1 delivery checkpoint — 2026-11-27
+
+The foundation, deck/card management, reveal/rate reviews, local progress, versioned backup/restore, published PWA offline/update behavior and Android lifecycle work are implemented. The [recovery record](release-smoke-2026-11-27.md) passed real web → Android → web backup recovery at its named application commit. See [v0.1 readiness and draft release notes](v0.1-readiness.md) for acceptance evidence and known limits. The sprint dates above are original planning windows; delivery continued through this checkpoint. Publication remains a separate decision. GitHub Project synchronization is pending and must not be inferred from merged code or closed issues.
+
 ## Working agreement
 
 - GitHub issues are the task source of truth. Each has observable acceptance criteria, dependencies, priority, size and verification.
