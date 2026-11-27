@@ -466,6 +466,7 @@ public class DeckDetailTests : BunitContext
             if (WriteGate is not null) await WriteGate.Task;
             await write();
         }
+        public Task ReplaceAllAsync(StudySnapshot snapshot, CancellationToken cancellationToken = default) => Inner.ReplaceAllAsync(snapshot, cancellationToken);
         public Task CreateDeckAsync(Deck deck, CancellationToken token = default) => Inner.CreateDeckAsync(deck, token);
         public Task UpdateDeckAsync(Deck deck, CancellationToken token = default) => Inner.UpdateDeckAsync(deck, token);
         public Task DeleteDeckAsync(Guid id, CancellationToken token = default) => WriteAsync(() => Inner.DeleteDeckAsync(id, token));

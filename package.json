@@ -6,7 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test tests/RecallDeck.Web.Tests/indexeddb.test.mjs tests/RecallDeck.Web.Tests/harness-failure.test.mjs tests/RecallDeck.Web.Tests/ui-cli.test.mjs",
+    "test": "node --test tests/RecallDeck.Web.Tests/indexeddb.test.mjs tests/RecallDeck.Web.Tests/harness-failure.test.mjs tests/RecallDeck.Web.Tests/ui-cli.test.mjs tests/RecallDeck.Web.Tests/backup-files.test.mjs",
     "test:ui": "node scripts/check-card-journey.mjs"
   },
   "devDependencies": {

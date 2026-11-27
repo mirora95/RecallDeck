@@ -1,4 +1,5 @@
 using RecallDeck.Core;
+using RecallDeck.Core.Storage;
 using RecallDeck.Storage.Sqlite;
 using SQLite;
 
@@ -68,10 +69,62 @@ public static class SqliteSmoke
         var saved = await new SqliteStudyStore(path).ReadSnapshotAsync();
         if (saved.Cards.Single().Schedule != later || saved.Reviews.Count != 2 || !saved.Reviews.Contains(second))
             throw new InvalidOperationException("Review retry was not atomic.");
+        await VerifyReplacementAsync(path, saved);
         await store.DeleteDeckAsync(Deck.Id);
         var empty = await new SqliteStudyStore(path).ReadSnapshotAsync();
         if (empty.Decks.Count != 0 || empty.Cards.Count != 0 || empty.Reviews.Count != 0)
             throw new InvalidOperationException("Cascade left related records.");
+    }
+
+    private static async Task VerifyReplacementAsync(string path, StudySnapshot before)
+    {
+        var restoredDeck = new Deck(Deck.Id, "Restored 日本語 😀", "  restored\nnotes");
+        var restoredCard = new Card(Card.Id, Deck.Id, "Restored <script>", "answer 😀",
+            new ReviewSchedule(5, DateTimeOffset.UnixEpoch.AddDays(30).AddTicks(1234567)));
+        var replacement = new StudySnapshot([restoredDeck], [restoredCard], [Review]);
+        var store = new SqliteStudyStore(path);
+        using (var db = new SQLiteConnection(path))
+            db.Execute("CREATE TRIGGER IF NOT EXISTS FailRestore BEFORE INSERT ON Reviews BEGIN SELECT RAISE(ABORT, 'synthetic restore failure'); END");
+        try
+        {
+            try
+            {
+                await store.ReplaceAllAsync(replacement);
+                throw new InvalidOperationException("Expected a failed replacement after deletion and insertion.");
+            }
+            catch (IOException error) when (error.InnerException is SQLiteException sql && sql.Message.Contains("synthetic restore failure", StringComparison.Ordinal)) { }
+            RequireSnapshot(before, await new SqliteStudyStore(path).ReadSnapshotAsync());
+        }
+        finally
+        {
+            using var db = new SQLiteConnection(path);
+            db.Execute("DROP TRIGGER IF EXISTS FailRestore");
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        try
+        {
+            await store.ReplaceAllAsync(replacement, cancellation.Token);
+            throw new InvalidOperationException("Expected canceled replacement.");
+        }
+        catch (OperationCanceledException) { }
+        RequireSnapshot(before, await new SqliteStudyStore(path).ReadSnapshotAsync());
+
+        await store.ReplaceAllAsync(replacement);
+        RequireSnapshot(replacement, await new SqliteStudyStore(path).ReadSnapshotAsync());
+        await store.ReplaceAllAsync(new StudySnapshot([], [], []));
+        RequireSnapshot(new StudySnapshot([], [], []), await new SqliteStudyStore(path).ReadSnapshotAsync());
+        await store.ReplaceAllAsync(before);
+        RequireSnapshot(before, await new SqliteStudyStore(path).ReadSnapshotAsync());
+    }
+
+    private static void RequireSnapshot(StudySnapshot expected, StudySnapshot actual)
+    {
+        if (!expected.Decks.OrderBy(row => row.Id).SequenceEqual(actual.Decks.OrderBy(row => row.Id)) ||
+            !expected.Cards.OrderBy(row => row.Id).SequenceEqual(actual.Cards.OrderBy(row => row.Id)) ||
+            !expected.Reviews.OrderBy(row => row.Id).SequenceEqual(actual.Reviews.OrderBy(row => row.Id)))
+            throw new InvalidOperationException("Replacement, rollback or reopening changed a stored field.");
     }
 
     public static async Task CheckSavedAsync(string path)

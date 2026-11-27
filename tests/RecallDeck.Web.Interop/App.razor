@@ -1,5 +1,6 @@
 @using RecallDeck.Core
 @using RecallDeck.Core.Storage
+@using RecallDeck.Core.Backup
 @using Microsoft.AspNetCore.Components.Web
 @inject IStudyStore Store
 
@@ -33,26 +34,53 @@
                 var after = await Store.ReadSnapshotAsync();
                 Verify(after.Decks.Single().Title == "Renamed 😀" && after.Cards.Single().Front == "Edited <script>" && after.Reviews.Single().Id == ReviewId, "C# create/edit/review roundtrip");
                 Verify(before.Decks.Count == 0 && before.Cards.Count == 0, "immutable prior snapshot");
+                var service = new StudyBackupService(Store);
+                var replacement = Replacement();
+                var preview = service.Preview(StudyBackupCodec.Export(replacement));
+                Verify(preview.DeckCount == 1 && preview.CardCount == 1 && preview.ReviewCount == 1, "validated preview counts");
+                Verify(Same(after, await Store.ReadSnapshotAsync()), "discarding preview performs no write");
+                using var cancellation = new CancellationTokenSource();
+                cancellation.Cancel();
+                try { await service.ConfirmRestoreAsync(preview, cancellation.Token); throw new Exception("Cancellation ignored"); }
+                catch (OperationCanceledException) { results.Add("PASS canceled replacement"); }
+                Verify(Same(after, await Store.ReadSnapshotAsync()), "cancel preserves every current field");
+                await service.ConfirmRestoreAsync(preview);
+                Verify(Same(replacement, await Store.ReadSnapshotAsync()), "C# replace-all serializes every field and removes old records");
                 results.Add("READY: reload this page, then Run checks to verify persisted data and clean up the fixture.");
             }
             else
             {
-                if (before.Decks.Count != 1 || before.Decks[0].Id != DeckId || before.Cards.Count != 1 || before.Cards[0].Id != CardId || before.Reviews.Count != 1 || before.Reviews[0].Id != ReviewId)
+                if (!Same(Replacement(), before))
                     throw new InvalidOperationException("Unrelated data present; no cleanup performed.");
 
-                Verify(before.Decks[0].Title == "Renamed 😀" && before.Cards[0].Schedule == new ReviewSchedule(1, Now.AddDays(1)) && before.Reviews[0].SessionItemId == SessionId, "reload preserves identities, Unicode and UTC schedule/history");
-                try { await Store.CreateDeckAsync(new Deck(DeckId, "Duplicate")); throw new Exception("Duplicate accepted"); }
+                Verify(Same(Replacement(), before), "reload preserves every restored identity, Unicode and UTC schedule/history field");
+                var exported = await new StudyBackupService(Store).ExportCurrentAsync();
+                Verify(Same(before, StudyBackupCodec.ValidateImport(exported)), "current-data export roundtrip");
+                try { await Store.CreateDeckAsync(before.Decks[0]); throw new Exception("Duplicate accepted"); }
                 catch (InvalidOperationException) { results.Add("PASS duplicate maps to InvalidOperationException"); }
 
-                await Store.DeleteDeckAsync(DeckId);
+                await Store.ReplaceAllAsync(new StudySnapshot([], [], []));
                 var after = await Store.ReadSnapshotAsync();
-                Verify(after.Decks.Count == 0 && after.Cards.Count == 0 && after.Reviews.Count == 0, "atomic cascade and synthetic fixture cleanup");
+                Verify(after.Decks.Count == 0 && after.Cards.Count == 0 && after.Reviews.Count == 0, "empty replacement and exact synthetic fixture cleanup");
                 results.Add("COMPLETE");
             }
         }
         catch (Exception error) { results.Add($"FAIL {error}"); }
         finally { running = false; }
     }
+
+    private static StudySnapshot Replacement()
+    {
+        var deck = new Deck(Guid.Parse("e08c57b8-1d10-496b-9ffd-308c6774e45c"), "Restored 日本語 😀", "  restored\nnotes");
+        var card = new Card(Guid.Parse("a73007db-4b9a-4992-9ab0-7841129a74cb"), deck.Id, "Restored <script>", "answer\n😀",
+            new ReviewSchedule(5, Now.AddDays(30).AddTicks(1234567)));
+        var review = new ReviewEvent(Guid.Parse("c40511c0-08f9-4483-ad31-aac5d8107c68"), card.Id,
+            Guid.Parse("99d00a93-0181-4fc7-b7cd-5f794471f9e6"), ReviewRating.Again, Now.AddTicks(7));
+        return new StudySnapshot([deck], [card], [review]);
+    }
+
+    private static bool Same(StudySnapshot expected, StudySnapshot actual)
+        => expected.Decks.SequenceEqual(actual.Decks) && expected.Cards.SequenceEqual(actual.Cards) && expected.Reviews.SequenceEqual(actual.Reviews);
 
     private void Verify(bool condition, string name)
     {

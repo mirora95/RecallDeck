@@ -27,7 +27,7 @@ public sealed class MainActivity : Activity
             {
                 await SqliteSmoke.VerifyRestartAndRollbackAsync(path);
                 File.Delete(path);
-                result = "PASS phase 2: process restart, native SQLite rollback, retry and cascade. Synthetic database removed.";
+                result = "PASS phase 2: process restart, native SQLite review and replace-all rollback, cancel, retry, reopen, empty restore and cascade. Synthetic database removed.";
             }
         }
         catch (Exception error) { result = "FAIL: " + error; }

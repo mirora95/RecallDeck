@@ -10,6 +10,8 @@ public sealed class UiFailureStudyStore(string databasePath) : IStudyStore
 {
     public const string FailureMarker = "[RecallDeck synthetic failed save] ";
     public const string ReviewFailureMarker = "[RecallDeck synthetic failed review] ";
+    public const string RestoreFailureMarker = "[RecallDeck synthetic failed restore] ";
+    private int restoreFailureUsed;
     private int reviewFailureUsed;
     private readonly SqliteStudyStore inner = new(databasePath);
 
@@ -41,6 +43,32 @@ public sealed class UiFailureStudyStore(string databasePath) : IStudyStore
     }
 
     public Task<StudySnapshot> ReadSnapshotAsync(CancellationToken cancellationToken = default) => inner.ReadSnapshotAsync(cancellationToken);
+    public async Task ReplaceAllAsync(StudySnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(snapshot);
+        snapshot.Validate();
+        var card = snapshot.Cards.FirstOrDefault(card => card.Front.StartsWith(RestoreFailureMarker, StringComparison.Ordinal));
+        if (card is null || Interlocked.CompareExchange(ref restoreFailureUsed, 1, 0) != 0)
+        {
+            await inner.ReplaceAllAsync(snapshot, cancellationToken);
+            return;
+        }
+
+        await inner.ReadSnapshotAsync(cancellationToken);
+        // Fail this exact owned incoming card after deletes/deck inserts to prove full rollback.
+        var trigger = "UiSmokeRestoreFail_" + card.Id.ToString("N");
+        using var db = new SQLiteConnection(databasePath);
+        db.Execute($"CREATE TRIGGER {trigger} BEFORE INSERT ON Cards WHEN NEW.Id = '{card.Id:D}' BEGIN SELECT RAISE(ABORT, 'synthetic UI restore failure'); END");
+        try
+        {
+            await inner.ReplaceAllAsync(snapshot, cancellationToken);
+        }
+        finally
+        {
+            db.Execute($"DROP TRIGGER {trigger}");
+        }
+    }
     public Task CreateDeckAsync(Deck deck, CancellationToken cancellationToken = default) => inner.CreateDeckAsync(deck, cancellationToken);
     public Task UpdateDeckAsync(Deck deck, CancellationToken cancellationToken = default) => inner.UpdateDeckAsync(deck, cancellationToken);
     public Task DeleteDeckAsync(Guid id, CancellationToken cancellationToken = default) => inner.DeleteDeckAsync(id, cancellationToken);

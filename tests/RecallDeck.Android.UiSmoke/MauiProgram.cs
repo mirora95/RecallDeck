@@ -1,3 +1,6 @@
+using RecallDeck.Core.Backup;
+using RecallDeck.UI.Backup;
+using RecallDeck.Mobile.Backup;
 using RecallDeck.Core;
 using RecallDeck.Core.Storage;
 using RecallDeck.Storage.Checks;
@@ -17,6 +20,8 @@ public static class MauiProgram
         builder.Services.AddScoped<ReviewScheduler>();
         builder.Services.AddScoped<CardService>();
         builder.Services.AddScoped<ReviewQueueService>();
+        builder.Services.AddScoped<StudyBackupService>();
+        builder.Services.AddScoped<IBackupFiles, AndroidBackupFiles>();
         return builder.Build();
     }
 }

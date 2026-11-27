@@ -72,7 +72,118 @@ async function fixtureSnapshot(name) {
     } finally { db.close(); }
 }
 
+function replacementFixture() {
+    const restoredDeck = { ...deck, id: "00000000-0000-0000-0000-000000000011", title: "Restored 日本語 😀" };
+    const restoredCard = { ...card, id: "00000000-0000-0000-0000-000000000012", deckId: restoredDeck.id, schedule: next };
+    const restoredReview = { ...review, id: "00000000-0000-0000-0000-000000000013", cardId: restoredCard.id, sessionItemId: "00000000-0000-0000-0000-000000000014" };
+    return { decks: [restoredDeck], cards: [restoredCard], reviews: [restoredReview] };
+}
+
 export const cases = [
+    ["replacement removes old related records and reopens with every new field", () => isolated(async (call, name) => {
+        await seed(call);
+        equal(await call("applyReview", review, next), {});
+        const before = await read(call);
+        const replacement = replacementFixture();
+
+        equal(await call("replaceAll", replacement), {});
+
+        equal(await read(call), replacement);
+        equal(await fixtureSnapshot(name), { version: 2, ...replacement });
+        equal(before.decks, [deck]);
+        equal(before.reviews, [review]);
+    })],
+    ["empty replacement removes decks cards and history", () => isolated(async call => {
+        await seed(call);
+        equal(await call("applyReview", review, next), {});
+
+        equal(await call("replaceAll", { decks: [], cards: [], reviews: [] }), {});
+        equal(await read(call), { decks: [], cards: [], reviews: [] });
+    })],
+    ["invalid replacement is rejected before any clear request", () => isolated(async call => {
+        await seed(call);
+        const before = await read(call);
+        const valid = replacementFixture();
+        const invalid = [
+            null, {}, { ...valid, cards: null }, { ...valid, decks: [null] },
+            { ...valid, cards: [null] }, { ...valid, reviews: [null] },
+            { ...valid, decks: [...valid.decks, valid.decks[0]] },
+            { ...valid, cards: [...valid.cards, valid.cards[0]] },
+            { ...valid, reviews: [...valid.reviews, valid.reviews[0]] },
+            { ...valid, reviews: [...valid.reviews, { ...valid.reviews[0], id: crypto.randomUUID() }] },
+            { ...valid, decks: [] }, { ...valid, cards: [] },
+            { ...valid, cards: [{ ...valid.cards[0], schedule: { ...schedule, level: 6 } }] },
+            { ...valid, reviews: [{ ...valid.reviews[0], rating: -1 }] }
+        ];
+        const clear = IDBObjectStore.prototype.clear;
+        let clears = 0;
+        try {
+            IDBObjectStore.prototype.clear = function (...args) { clears++; return clear.apply(this, args); };
+            for (const candidate of invalid) {
+                equal((await call("replaceAll", candidate)).error, "invalid");
+                equal(await read(call), before);
+            }
+        } finally { IDBObjectStore.prototype.clear = clear; }
+        equal(clears, 0);
+    })],
+    ["replacement request failure after clears rolls back and retry reopens", () => isolated(async (call, name) => {
+        await seed(call);
+        equal(await call("applyReview", review, next), {});
+        const before = await read(call);
+        const replacement = replacementFixture();
+        const add = IDBObjectStore.prototype.add;
+        let cleared = false;
+        const clear = IDBObjectStore.prototype.clear;
+        try {
+            IDBObjectStore.prototype.clear = function (...args) {
+                const request = clear.apply(this, args);
+                request.addEventListener("success", () => { cleared = true; });
+                return request;
+            };
+            IDBObjectStore.prototype.add = function (...args) {
+                const request = add.apply(this, args);
+                if (this.name === "reviews") add.apply(this, args);
+                return request;
+            };
+            equal((await call("replaceAll", replacement)).error, "duplicate");
+            equal(cleared, true);
+        } finally {
+            IDBObjectStore.prototype.add = add;
+            IDBObjectStore.prototype.clear = clear;
+        }
+        equal(await read(call), before);
+        equal(await call("replaceAll", replacement), {});
+        equal(await fixtureSnapshot(name), { version: 2, ...replacement });
+    })],
+    ["cancellation after replacement clear rolls back and permits retry", () => isolated(async (call, name) => {
+        await seed(call);
+        equal(await call("applyReview", review, next), {});
+        const before = await read(call);
+        const replacement = replacementFixture();
+        const clear = IDBObjectStore.prototype.clear;
+        let pending;
+        try {
+            IDBObjectStore.prototype.clear = function (...args) {
+                const request = clear.apply(this, args);
+                request.addEventListener("success", () => pending.cancel());
+                return request;
+            };
+            pending = start(name, "replaceAll", replacement);
+            equal((await pending.finish()).error, "canceled");
+        } finally { IDBObjectStore.prototype.clear = clear; }
+        equal(await read(call), before);
+        equal(await call("replaceAll", replacement), {});
+        equal(await read(call), replacement);
+    })],
+    ["pre-canceled replacement does not change data", () => isolated(async (call, name) => {
+        await seed(call);
+        const before = await read(call);
+        const pending = start(name, "replaceAll", replacementFixture());
+        pending.cancel();
+        equal((await pending.finish()).error, "canceled");
+        equal(await read(call), before);
+    })],
+
     ["version 1 upgrades preserve all fields and reopen at version 2", () => isolated(async (call, name) => {
         await versionOne(name);
         const before = await fixtureSnapshot(name);

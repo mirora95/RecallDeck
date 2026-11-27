@@ -15,6 +15,14 @@ public sealed class IndexedDbStudyStore(IJSRuntime js) : IStudyStore
         return new StudySnapshot(result.Decks, result.Cards, result.Reviews);
     }
 
+    public Task ReplaceAllAsync(StudySnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(snapshot);
+        snapshot.Validate();
+        return ExecuteAsync("replaceAll", snapshot, null, cancellationToken);
+    }
+
     public Task CreateDeckAsync(Deck deck, CancellationToken cancellationToken = default)
         => ExecuteAsync("createDeck", deck ?? throw new ArgumentNullException(nameof(deck)), null, cancellationToken);
 

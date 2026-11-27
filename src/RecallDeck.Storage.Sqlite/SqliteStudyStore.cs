@@ -35,6 +35,27 @@ public sealed class SqliteStudyStore : IStudyStore
             }
         }, cancellationToken);
 
+    public Task ReplaceAllAsync(StudySnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(snapshot);
+        snapshot.Validate();
+        return Change(db =>
+        {
+            db.Execute("DELETE FROM Reviews");
+            db.Execute("DELETE FROM Cards");
+            db.Execute("DELETE FROM Decks");
+            foreach (var deck in snapshot.Decks)
+                db.Insert(new DeckRow { Id = deck.Id.ToString(), Title = deck.Title, Description = deck.Description });
+            foreach (var card in snapshot.Cards)
+                db.Insert(new CardRow { Id = card.Id.ToString(), DeckId = card.DeckId.ToString(), Front = card.Front, Back = card.Back,
+                    Level = card.Schedule.Level, DueAtTicks = card.Schedule.DueAt.UtcTicks });
+            foreach (var review in snapshot.Reviews)
+                db.Insert(new ReviewRow { Id = review.Id.ToString(), CardId = review.CardId.ToString(), SessionItemId = review.SessionItemId.ToString(),
+                    Rating = (int)review.Rating, ReviewedAtTicks = review.ReviewedAt.UtcTicks });
+        }, cancellationToken);
+    }
+
     public Task CreateDeckAsync(Deck deck, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(deck);

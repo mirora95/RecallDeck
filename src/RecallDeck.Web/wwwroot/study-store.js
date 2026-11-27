@@ -111,6 +111,21 @@ function mutate(tx, snapshot, operation, value, schedule) {
     };
 
     switch (operation) {
+        case "replaceAll": {
+            // Core validates all field values before interop; verify collection integrity before queuing any clears.
+            if (!value || stores.some(name => !Array.isArray(value[name]) || value[name].some(row => !row || typeof row.id !== "string" || !row.id)))
+                fail("invalid");
+            const ids = name => new Set(value[name].map(row => row.id));
+            const deckIds = ids("decks"), cardIds = ids("cards"), reviewIds = ids("reviews");
+            if (deckIds.size !== value.decks.length || cardIds.size !== value.cards.length || reviewIds.size !== value.reviews.length ||
+                new Set(value.reviews.map(row => row.sessionItemId)).size !== value.reviews.length ||
+                value.cards.some(row => !deckIds.has(row.deckId) || !validLevel(row.schedule?.level)) ||
+                value.reviews.some(row => !cardIds.has(row.cardId) || !row.sessionItemId || !validRating(row.rating)))
+                fail("invalid");
+            for (const name of stores) store(name).clear();
+            for (const name of stores) for (const row of value[name]) store(name).add(row);
+            break;
+        }
         case "createDeck":
             unique(decks, value.id);
             store("decks").add(value);

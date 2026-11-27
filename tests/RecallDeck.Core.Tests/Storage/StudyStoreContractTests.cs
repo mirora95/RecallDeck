@@ -273,6 +273,136 @@ public abstract class StudyStoreContractTests
         AssertUnchanged(before, await harness.Store.ReadSnapshotAsync());
     }
 
+    [Fact]
+    public async Task ReplacementPreservesEveryFieldAndEarlierSnapshots()
+    {
+        var store = CreateStore().Store;
+        var (_, oldCard) = await SeedAsync(store);
+        await store.ApplyReviewAsync(NewReview(oldCard.Id), new ReviewSchedule(1, Now));
+        var before = await store.ReadSnapshotAsync();
+        var replacement = Replacement();
+
+        await store.ReplaceAllAsync(replacement);
+
+        AssertUnchanged(replacement, await store.ReadSnapshotAsync());
+        Assert.Single(before.Decks);
+        Assert.Single(before.Cards);
+        Assert.Single(before.Reviews);
+        Assert.Equal(oldCard.Id, before.Cards[0].Id);
+    }
+
+    [Fact]
+    public async Task EmptyReplacementRemovesEveryRelatedRecord()
+    {
+        var store = CreateStore().Store;
+        var (_, card) = await SeedAsync(store);
+        await store.ApplyReviewAsync(NewReview(card.Id), new ReviewSchedule(1, Now));
+
+        await store.ReplaceAllAsync(new StudySnapshot([], [], []));
+
+        AssertUnchanged(new StudySnapshot([], [], []), await store.ReadSnapshotAsync());
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("null-deck")]
+    [InlineData("null-card")]
+    [InlineData("null-review")]
+    [InlineData("duplicate-deck")]
+    [InlineData("duplicate-card")]
+    [InlineData("duplicate-review")]
+    [InlineData("duplicate-session")]
+    [InlineData("orphan-card")]
+    [InlineData("orphan-review")]
+    [InlineData("invalid-title-unicode")]
+    [InlineData("invalid-description-unicode")]
+    [InlineData("invalid-front-unicode")]
+    [InlineData("invalid-back-unicode")]
+    public async Task InvalidReplacementDoesNotReachCommitOrChangeCurrentData(string invalid)
+    {
+        var harness = CreateStore();
+        await SeedAsync(harness.Store);
+        var before = await harness.Store.ReadSnapshotAsync();
+        var source = Replacement();
+        var deck = source.Decks[0];
+        var card = source.Cards[0];
+        var review = source.Reviews[0];
+        var candidate = invalid switch
+        {
+            "null" => null,
+            "null-deck" => new StudySnapshot([null!], [], []),
+            "null-card" => new StudySnapshot([deck], [null!], []),
+            "null-review" => new StudySnapshot([deck], [card], [null!]),
+            "duplicate-deck" => new StudySnapshot([deck, deck], [card], [review]),
+            "duplicate-card" => new StudySnapshot([deck], [card, card], [review]),
+            "duplicate-review" => new StudySnapshot([deck], [card], [review, review]),
+            "duplicate-session" => new StudySnapshot([deck], [card], [review, new ReviewEvent(Guid.NewGuid(), card.Id, review.SessionItemId, review.Rating, review.ReviewedAt)]),
+            "orphan-card" => new StudySnapshot([], [card], []),
+            "orphan-review" => new StudySnapshot([deck], [], [review]),
+            "invalid-title-unicode" => new StudySnapshot([new Deck(deck.Id, "\ud800")], [], []),
+            "invalid-description-unicode" => new StudySnapshot([new Deck(deck.Id, deck.Title, "\ud800")], [], []),
+            "invalid-front-unicode" => new StudySnapshot([deck], [new Card(card.Id, deck.Id, "\ud800", card.Back, card.Schedule)], []),
+            "invalid-back-unicode" => new StudySnapshot([deck], [new Card(card.Id, deck.Id, card.Front, "\ud800", card.Schedule)], []),
+            _ => throw new ArgumentOutOfRangeException(nameof(invalid))
+        };
+        var commitReached = false;
+        harness.BeforeNextCommit(() => commitReached = true);
+
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => harness.Store.ReplaceAllAsync(candidate!));
+
+        Assert.False(commitReached);
+        AssertUnchanged(before, await harness.Store.ReadSnapshotAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedReplacementRollsBackAndTheSameSnapshotCanRetry(bool cancel)
+    {
+        var harness = CreateStore();
+        var (_, card) = await SeedAsync(harness.Store);
+        await harness.Store.ApplyReviewAsync(NewReview(card.Id), new ReviewSchedule(1, Now));
+        var before = await harness.Store.ReadSnapshotAsync();
+        var replacement = Replacement();
+        using var cancellation = new CancellationTokenSource();
+        harness.BeforeNextCommit(cancel ? cancellation.Cancel : () => throw new IOException("Injected replacement failure"));
+
+        if (cancel)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harness.Store.ReplaceAllAsync(replacement, cancellation.Token));
+        else
+            await Assert.ThrowsAsync<IOException>(() => harness.Store.ReplaceAllAsync(replacement));
+
+        AssertUnchanged(before, await harness.Store.ReadSnapshotAsync());
+        await harness.Store.ReplaceAllAsync(replacement);
+        AssertUnchanged(replacement, await harness.Store.ReadSnapshotAsync());
+    }
+
+    [Fact]
+    public async Task PreCanceledReplacementDoesNotReachCommit()
+    {
+        var harness = CreateStore();
+        await SeedAsync(harness.Store);
+        var before = await harness.Store.ReadSnapshotAsync();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var commitReached = false;
+        harness.BeforeNextCommit(() => commitReached = true);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => harness.Store.ReplaceAllAsync(Replacement(), cancellation.Token));
+
+        Assert.False(commitReached);
+        AssertUnchanged(before, await harness.Store.ReadSnapshotAsync());
+    }
+
+    private static StudySnapshot Replacement()
+    {
+        var deck = new Deck(Guid.NewGuid(), "Restored 日本語 😀", "  notes\n");
+        var card = new Card(Guid.NewGuid(), deck.Id, "<script>literal</script>\nquestion", "answer 😀",
+            new ReviewSchedule(4, Now.AddTicks(1234567)));
+        var review = new ReviewEvent(Guid.NewGuid(), card.Id, Guid.NewGuid(), ReviewRating.Again, Now.AddTicks(7));
+        return new StudySnapshot([deck], [card], [review]);
+    }
+
     private static async Task<(Deck Deck, Card Card)> SeedAsync(IStudyStore store, int level = 0)
     {
         var deck = new Deck(Guid.NewGuid(), "日本語 😀", "Description");

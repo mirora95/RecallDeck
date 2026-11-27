@@ -1,3 +1,6 @@
+using RecallDeck.Core.Backup;
+using RecallDeck.UI.Backup;
+using RecallDeck.Web.Backup;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using RecallDeck.UI;
@@ -15,5 +18,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ReviewScheduler>();
 builder.Services.AddScoped<CardService>();
 builder.Services.AddScoped<ReviewQueueService>();
+builder.Services.AddScoped<StudyBackupService>();
+builder.Services.AddScoped<IBackupFiles, BrowserBackupFiles>();
 
 await builder.Build().RunAsync();
