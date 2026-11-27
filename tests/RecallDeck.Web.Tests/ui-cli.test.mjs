@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseOptions } from '../../scripts/check-card-journey.mjs';
+import { parseOptions as parseAccessibilityOptions } from '../../scripts/check-accessibility.mjs';
+
+test('Accessibility driver accepts only a plain loopback origin without browser or device overrides', () => {
+    assert.equal(parseAccessibilityOptions(['http://127.0.0.1:5189']).url, 'http://127.0.0.1:5189');
+    for (const args of [[], ['https://example.com'], ['http://127.0.0.1:5189/path'],
+        ['http://localhost:5189', '--headed'], ['android', '--serial', 'emulator-5554']]) {
+        assert.throws(() => parseAccessibilityOptions(args));
+    }
+});
 
 test('UI driver accepts only a plain HTTP loopback origin for a fresh headless context', () => {
     assert.equal(parseOptions(['web', 'http://127.0.0.1:5189']).url, 'http://127.0.0.1:5189');

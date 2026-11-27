@@ -8,7 +8,8 @@
   "scripts": {
     "test": "node --test tests/RecallDeck.Web.Tests/indexeddb.test.mjs tests/RecallDeck.Web.Tests/harness-failure.test.mjs tests/RecallDeck.Web.Tests/ui-cli.test.mjs tests/RecallDeck.Web.Tests/backup-files.test.mjs tests/RecallDeck.Web.Tests/pwa.test.mjs tests/RecallDeck.Web.Tests/pwa-cli.test.mjs",
     "test:ui": "node scripts/check-card-journey.mjs",
-    "test:pwa": "node scripts/check-pwa-journey.mjs"
+    "test:pwa": "node scripts/check-pwa-journey.mjs",
+    "test:accessibility": "node scripts/check-accessibility.mjs"
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.7",

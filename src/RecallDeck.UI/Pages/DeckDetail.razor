@@ -8,7 +8,7 @@
 <UnsavedChanges @ref="unsaved" Dirty="@IsDirty" Busy="@saving" OnDiscarded="StateHasChanged" OnStayed="FocusEditorAsync" />
 
 <PageTitle>@(deck?.Title ?? "Deck") · RecallDeck</PageTitle>
-<a href="/decks">Back to decks</a>
+<a class="study-action" href="/decks">Back to decks</a>
 @if (loading)
 {
     <h1 tabindex="-1">Deck</h1>
@@ -33,7 +33,7 @@ else if (deck is not null)
     {
         <p class="deck-description">@deck.Description</p>
     }
-    <p><a id="review-deck" href="@($"/review?deck={deck.Id}")">Review due cards in this deck</a></p>
+    <p><a id="review-deck" class="study-action" href="@($"/review?deck={deck.Id}")">Review due cards in this deck</a></p>
     <button id="delete-deck" type="button" class="secondary" disabled="@(saving || confirming || editingId is not null)" @onclick="BeginDeckDeleteAsync">Delete deck</button>
     @if (confirming)
     {

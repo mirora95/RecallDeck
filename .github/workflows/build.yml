@@ -59,6 +59,7 @@ jobs:
               raise SystemExit("Owned published server did not become ready")
           PY
           npm run test:ui -- web http://127.0.0.1:5189
+          npm run test:accessibility -- http://127.0.0.1:5189
       - name: Published PWA offline use and safe waiting update
         run: npm run test:pwa -- artifacts/web/wwwroot artifacts/pwa-update/wwwroot
 
