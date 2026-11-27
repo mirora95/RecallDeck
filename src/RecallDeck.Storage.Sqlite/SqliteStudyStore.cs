@@ -148,16 +148,30 @@ public sealed class SqliteStudyStore : IStudyStore
     private static void Initialize(SQLiteConnection db)
     {
         var version = db.ExecuteScalar<int>("PRAGMA user_version");
-        if (version == 1) return;
-        if (version != 0 || db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'") != 0)
+        if (version == 2) return;
+        if (version != 0 && version != 1 || version == 0 &&
+            db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'") != 0)
             throw new IOException("This database schema is not supported. Preserve it and use the matching app version or a verified backup; do not clear storage.");
 
-        db.Execute("CREATE TABLE Decks (Id TEXT PRIMARY KEY NOT NULL, Title TEXT NOT NULL, Description TEXT NOT NULL)");
-        db.Execute("CREATE TABLE Cards (Id TEXT PRIMARY KEY NOT NULL, DeckId TEXT NOT NULL REFERENCES Decks(Id) ON DELETE CASCADE, Front TEXT NOT NULL, Back TEXT NOT NULL, Level INTEGER NOT NULL, DueAtTicks INTEGER NOT NULL)");
-        db.Execute("CREATE TABLE Reviews (Id TEXT PRIMARY KEY NOT NULL, CardId TEXT NOT NULL REFERENCES Cards(Id) ON DELETE CASCADE, SessionItemId TEXT NOT NULL UNIQUE, Rating INTEGER NOT NULL, ReviewedAtTicks INTEGER NOT NULL)");
-        db.Execute("CREATE INDEX CardsByDeck ON Cards(DeckId)");
-        db.Execute("CREATE INDEX ReviewsByCard ON Reviews(CardId)");
-        db.Execute("PRAGMA user_version = 1");
+        if (version == 0)
+        {
+            db.Execute("CREATE TABLE Decks (Id TEXT PRIMARY KEY NOT NULL, Title TEXT NOT NULL, Description TEXT NOT NULL)");
+            db.Execute("CREATE TABLE Cards (Id TEXT PRIMARY KEY NOT NULL, DeckId TEXT NOT NULL REFERENCES Decks(Id) ON DELETE CASCADE, Front TEXT NOT NULL, Back TEXT NOT NULL, Level INTEGER NOT NULL, DueAtTicks INTEGER NOT NULL)");
+            db.Execute("CREATE TABLE Reviews (Id TEXT PRIMARY KEY NOT NULL, CardId TEXT NOT NULL REFERENCES Cards(Id) ON DELETE CASCADE, SessionItemId TEXT NOT NULL UNIQUE, Rating INTEGER NOT NULL, ReviewedAtTicks INTEGER NOT NULL)");
+            db.Execute("CREATE INDEX CardsByDeck ON Cards(DeckId)");
+            db.Execute("CREATE INDEX ReviewsByCard ON Reviews(CardId)");
+            db.Execute("PRAGMA user_version = 1");
+        }
+
+        if (db.ExecuteScalar<int>("SELECT COUNT(*) FROM Cards WHERE typeof(Level) != 'integer' OR Level NOT BETWEEN 0 AND 5") != 0 ||
+            db.ExecuteScalar<int>("SELECT COUNT(*) FROM Reviews WHERE typeof(Rating) != 'integer' OR Rating NOT BETWEEN 0 AND 1") != 0)
+            throw new IOException("Saved review levels or ratings cannot be upgraded. Preserve the database and use the matching app version or a verified backup; do not clear storage.");
+
+        db.Execute("CREATE TRIGGER ValidateCardLevelInsert BEFORE INSERT ON Cards WHEN typeof(NEW.Level) != 'integer' OR NEW.Level NOT BETWEEN 0 AND 5 BEGIN SELECT RAISE(ABORT, 'Invalid review level'); END");
+        db.Execute("CREATE TRIGGER ValidateCardLevelUpdate BEFORE UPDATE ON Cards WHEN typeof(NEW.Level) != 'integer' OR NEW.Level NOT BETWEEN 0 AND 5 BEGIN SELECT RAISE(ABORT, 'Invalid review level'); END");
+        db.Execute("CREATE TRIGGER ValidateReviewRatingInsert BEFORE INSERT ON Reviews WHEN typeof(NEW.Rating) != 'integer' OR NEW.Rating NOT BETWEEN 0 AND 1 BEGIN SELECT RAISE(ABORT, 'Invalid review rating'); END");
+        db.Execute("CREATE TRIGGER ValidateReviewRatingUpdate BEFORE UPDATE ON Reviews WHEN typeof(NEW.Rating) != 'integer' OR NEW.Rating NOT BETWEEN 0 AND 1 BEGIN SELECT RAISE(ABORT, 'Invalid review rating'); END");
+        db.Execute("PRAGMA user_version = 2");
     }
 }
 

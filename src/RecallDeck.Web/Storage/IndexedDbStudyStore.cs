@@ -64,6 +64,7 @@ public sealed class IndexedDbStudyStore(IJSRuntime js) : IStudyStore
                 "canceled" => throw new OperationCanceledException("The browser storage operation was canceled.", cancellationToken),
                 "quota" => throw new IOException("Browser storage is full. Keep your edits, free space outside this app, then retry. Do not clear this app's data."),
                 "unavailable" => throw new IOException("Browser storage is unavailable. Allow site storage in this browser, then retry. Keep any unsaved text."),
+                "migration" => throw new IOException("Browser study data could not be upgraded. Preserve existing browser data and use the matching app version or a verified backup; do not clear storage."),
                 "version" => throw new IOException("This study database needs a newer app version. Reload the updated app; do not clear existing storage."),
                 _ => throw new IOException("Browser storage could not complete the operation. Keep your edits and retry; existing data has not been reset.")
             };

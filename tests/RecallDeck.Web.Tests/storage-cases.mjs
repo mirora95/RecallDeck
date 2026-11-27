@@ -30,7 +30,158 @@ async function seed(call) {
 const read = call => call("read");
 const reject = async (call, operation, value, code, schedule) => equal((await call(operation, value, schedule)).error, code);
 
+async function openFixture(name, version, initialize) {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(name, version);
+        let abandoned = false;
+        request.onupgradeneeded = () => initialize?.(request.result, request.transaction);
+        request.onerror = () => reject(request.error);
+        request.onblocked = () => { abandoned = true; reject(new Error("Test database verification blocked")); };
+        request.onsuccess = () => {
+            if (abandoned) { request.result.close(); return; }
+            resolve(request.result);
+        };
+    });
+}
+
+async function versionOne(name, change = () => {}, layout = () => {}) {
+    const db = await openFixture(name, 1, (db, tx) => {
+        for (const name of ["decks", "cards", "reviews"]) db.createObjectStore(name, { keyPath: "id" });
+        tx.objectStore("reviews").createIndex("sessionItemId", "sessionItemId", { unique: true });
+        const snapshot = { decks: [deck], cards: [{ ...card, schedule: next }], reviews: [review] };
+        change(snapshot);
+        for (const [name, rows] of Object.entries(snapshot)) for (const row of rows) tx.objectStore(name).add(row);
+        layout(db, tx);
+    });
+    db.close();
+}
+
+async function fixtureSnapshot(name) {
+    const db = await openFixture(name);
+    try {
+        return await new Promise((resolve, reject) => {
+            const snapshot = { version: db.version };
+            const tx = db.transaction(["decks", "cards", "reviews"]);
+            for (const name of ["decks", "cards", "reviews"]) {
+                const request = tx.objectStore(name).getAll();
+                request.onsuccess = () => { snapshot[name] = request.result; };
+            }
+            tx.oncomplete = () => resolve(snapshot);
+            tx.onabort = () => reject(tx.error);
+        });
+    } finally { db.close(); }
+}
+
 export const cases = [
+    ["version 1 upgrades preserve all fields and reopen at version 2", () => isolated(async (call, name) => {
+        await versionOne(name);
+        const before = await fixtureSnapshot(name);
+
+        equal(await read(call), { decks: before.decks, cards: before.cards, reviews: before.reviews });
+        equal(await fixtureSnapshot(name), { ...before, version: 2 });
+        equal(await read(call), { decks: before.decks, cards: before.cards, reviews: before.reviews });
+    })],
+    ["upgrade request failure rolls back and allows retry", () => isolated(async (call, name) => {
+        await versionOne(name);
+        const before = await fixtureSnapshot(name);
+        const getAll = IDBObjectStore.prototype.getAll;
+        const open = indexedDB.open;
+        let rollbackFinished = false;
+        try {
+            indexedDB.open = function (...args) {
+                const request = open.apply(this, args);
+                request.addEventListener("error", () => { rollbackFinished = true; });
+                return request;
+            };
+            IDBObjectStore.prototype.getAll = function (...args) {
+                // A duplicate request fails asynchronously after the upgrade has started.
+                if (this.transaction.mode === "versionchange" && this.name === "cards") return this.add(card);
+                return getAll.apply(this, args);
+            };
+            equal((await read(call)).error, "migration");
+            equal(rollbackFinished, true);
+        } finally {
+            IDBObjectStore.prototype.getAll = getAll;
+            indexedDB.open = open;
+        }
+
+        equal(await fixtureSnapshot(name), before);
+        equal((await read(call)).cards, before.cards);
+        equal((await fixtureSnapshot(name)).version, 2);
+    })],
+    ["malformed version 1 card rolls back and repaired data can retry", () => isolated(async (call, name) => {
+        await versionOne(name, snapshot => { delete snapshot.cards[0].schedule; });
+        const before = await fixtureSnapshot(name);
+
+        equal((await read(call)).error, "migration");
+        equal(await fixtureSnapshot(name), before);
+
+        const db = await openFixture(name, 1);
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction("cards", "readwrite");
+            tx.objectStore("cards").put({ ...card, schedule: next });
+            tx.oncomplete = resolve;
+            tx.onabort = () => reject(tx.error);
+        }).finally(() => db.close());
+        equal((await read(call)).cards, [{ ...card, schedule: next }]);
+        equal((await fixtureSnapshot(name)).version, 2);
+    })],
+    ["cancel during upgrade rolls back before settling and permits retry", () => isolated(async (call, name) => {
+        await versionOne(name);
+        const before = await fixtureSnapshot(name);
+        const getAll = IDBObjectStore.prototype.getAll;
+        let pending;
+        try {
+            IDBObjectStore.prototype.getAll = function (...args) {
+                const request = getAll.apply(this, args);
+                if (this.transaction.mode === "versionchange") request.addEventListener("success", () => pending.cancel());
+                return request;
+            };
+            pending = start(name, "deleteDeck", deck.id);
+            equal((await pending.finish()).error, "canceled");
+        } finally { IDBObjectStore.prototype.getAll = getAll; }
+
+        equal(await fixtureSnapshot(name), before);
+        equal((await read(call)).reviews, [review]);
+    })],
+    ["cancel after upgrade commit prevents the pending delete", () => isolated(async (call, name) => {
+        await versionOne(name);
+        const before = await fixtureSnapshot(name);
+        const open = indexedDB.open;
+        let pending;
+        try {
+            indexedDB.open = function (...args) {
+                const request = open.apply(this, args);
+                request.addEventListener("upgradeneeded", () => {
+                    request.transaction.addEventListener("complete", () => pending.cancel());
+                });
+                return request;
+            };
+            pending = start(name, "deleteDeck", deck.id);
+            equal(await pending.finish(), { error: "canceled" });
+        } finally { indexedDB.open = open; }
+
+        equal(await fixtureSnapshot(name), { ...before, version: 2 });
+        equal(await read(call), { decks: before.decks, cards: before.cards, reviews: before.reviews });
+        equal(await call("deleteDeck", deck.id), {});
+        equal(await read(call), { decks: [], cards: [], reviews: [] });
+    })],
+    ["cancel at requested mutation commit reports its successful outcome", () => isolated(async (call, name) => {
+        await seed(call);
+        const transaction = IDBDatabase.prototype.transaction;
+        let pending;
+        try {
+            IDBDatabase.prototype.transaction = function (...args) {
+                const tx = transaction.apply(this, args);
+                tx.addEventListener("complete", () => pending.cancel());
+                return tx;
+            };
+            pending = start(name, "deleteDeck", deck.id);
+            equal(await pending.finish(), {});
+        } finally { IDBDatabase.prototype.transaction = transaction; }
+
+        equal(await read(call), { decks: [], cards: [], reviews: [] });
+    })],
     ["empty database and stable snapshots across create/update/reopen", () => isolated(async call => {
         equal(await read(call), { decks: [], cards: [], reviews: [] });
         await seed(call);
@@ -127,13 +278,13 @@ export const cases = [
     ["newer schema is not reset", () => isolated(async (call, name) => {
         await seed(call);
         await new Promise((resolve, reject) => {
-            const request = indexedDB.open(name, 2);
+            const request = indexedDB.open(name, 3);
             request.onsuccess = () => { request.result.close(); resolve(); };
             request.onerror = () => reject(request.error);
             request.onblocked = () => reject(new Error("Test database upgrade blocked"));
         });
         equal((await read(call)).error, "version");
-        const request = indexedDB.open(name, 2);
+        const request = indexedDB.open(name, 3);
         const rows = await new Promise((resolve, reject) => {
             let abandoned = false;
             request.onerror = () => reject(request.error);
@@ -199,5 +350,51 @@ for (const operation of ["createDeck", "updateDeck", "deleteDeck", "createCard",
             equal((await pending.finish()).error, "canceled");
         } finally { IDBObjectStore.prototype.getAll = getAll; }
         equal(await read(call), before);
+    })]);
+}
+
+for (const [field, values] of [["level", [-1, 6, 1.5, "1", null]], ["rating", [-1, 2, 0.5, "1", null]]]) {
+    for (const value of values) {
+        cases.push([`version 1 invalid ${field} ${JSON.stringify(value)} preserves records and version`, () => isolated(async (call, name) => {
+            await versionOne(name, snapshot => {
+                if (field === "level") snapshot.cards[0].schedule.level = value;
+                else snapshot.reviews[0].rating = value;
+            });
+            const before = await fixtureSnapshot(name);
+
+            equal((await read(call)).error, "migration");
+            equal(await fixtureSnapshot(name), before);
+        })]);
+        cases.push([`writes reject invalid ${field} ${JSON.stringify(value)} atomically`, () => isolated(async call => {
+            await seed(call);
+            const before = await read(call);
+
+            if (field === "level") {
+                await reject(call, "createCard", { ...card, id: "other", schedule: { ...next, level: value } }, "invalid");
+                await reject(call, "applyReview", review, "invalid", { ...next, level: value });
+            } else await reject(call, "applyReview", { ...review, rating: value }, "invalid", next);
+            equal(await read(call), before);
+        })]);
+    }
+}
+
+for (const [label, layout] of [
+    ["extra store", db => db.createObjectStore("unknown", { keyPath: "id" })],
+    ["missing store", db => db.deleteObjectStore("decks")],
+    ["wrong key", db => { db.deleteObjectStore("decks"); db.createObjectStore("decks", { keyPath: "other" }); }],
+    ["missing index", (_, tx) => tx.objectStore("reviews").deleteIndex("sessionItemId")],
+    ["nonunique index", (_, tx) => { const reviews = tx.objectStore("reviews"); reviews.deleteIndex("sessionItemId"); reviews.createIndex("sessionItemId", "sessionItemId"); }],
+    ["wrong index key", (_, tx) => { const reviews = tx.objectStore("reviews"); reviews.deleteIndex("sessionItemId"); reviews.createIndex("sessionItemId", "other", { unique: true }); }]
+]) {
+    cases.push([`unknown version 1 layout: ${label} is preserved`, () => isolated(async (call, name) => {
+        await versionOne(name, undefined, layout);
+        const db = await openFixture(name);
+        const original = [...db.objectStoreNames];
+        db.close();
+
+        equal((await read(call)).error, "migration");
+        const preserved = await openFixture(name);
+        try { equal(preserved.version, 1); equal([...preserved.objectStoreNames], original); }
+        finally { preserved.close(); }
     })]);
 }
