@@ -16,6 +16,9 @@ public class NavigationTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton<IStudyStore, InMemoryStudyStore>();
         Services.AddScoped<DeckService>();
+        Services.AddSingleton(TimeProvider.System);
+        Services.AddScoped<ReviewScheduler>();
+        Services.AddScoped<CardService>();
     }
 
     [Theory]
@@ -43,6 +46,20 @@ public class NavigationTests : BunitContext
 
         Assert.Contains("not available yet", page.Find("main").TextContent);
         Assert.Empty(page.FindAll("main input, main button"));
+    }
+
+    [Fact]
+    public async Task DeckDetailRouteUsesSharedShellAndKeepsDeckNavigationActive()
+    {
+        var deck = await Services.GetRequiredService<DeckService>().CreateAsync("Biology");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/decks/{deck.Id}");
+
+        var page = Render<App>();
+
+        Assert.Equal("Biology", page.Find("h1").TextContent);
+        Assert.Equal("Decks", page.Find("nav a.active").TextContent);
+        Assert.Single(page.FindAll("main#main #card-editor"));
+        Assert.DoesNotContain("Something went wrong", page.Markup);
     }
 
     [Fact]

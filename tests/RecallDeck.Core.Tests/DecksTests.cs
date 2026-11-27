@@ -57,6 +57,7 @@ public class DecksTests : BunitContext
         await page.Find("#create-deck").SubmitAsync();
 
         Assert.Equal(title, page.Find(".deck-row h3").TextContent);
+        Assert.Equal($"/decks/{Assert.Single((await store.Inner.ReadSnapshotAsync()).Decks).Id}", page.Find(".deck-row h3 a").GetAttribute("href"));
         Assert.Contains("<script>alert(1)</script>", page.Find(".deck-row p").TextContent);
         Assert.Empty(page.FindAll("img, script, [role='alert']"));
         Assert.Equal("", page.Find("#create-title").GetAttribute("value"));

@@ -43,4 +43,21 @@ public sealed class DeckService
             .ThenBy(deck => deck.Id)
             .ToArray());
     }
+
+    public async Task<DeckDetailSnapshot> GetAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var snapshot = await store.ReadSnapshotAsync(cancellationToken);
+        var deck = snapshot.Decks.SingleOrDefault(deck => deck.Id == id)
+            ?? throw new KeyNotFoundException("The deck was not found.");
+        return new DeckDetailSnapshot(deck, Array.AsReadOnly(snapshot.Cards.Where(card => card.DeckId == id).ToArray()));
+    }
+
+    public Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return store.DeleteDeckAsync(id, cancellationToken);
+    }
 }

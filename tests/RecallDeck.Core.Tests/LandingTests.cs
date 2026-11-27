@@ -20,7 +20,7 @@ public class LandingTests
         });
 
         Assert.Contains("<h1 id=\"welcome\" tabindex=\"-1\">Make room for what you learn.</h1>", html);
-        Assert.Contains("Create and rename decks now", html);
+        Assert.Contains("Create decks and write question-and-answer cards", html);
         Assert.Contains("id=\"release-plan\"", html);
         Assert.DoesNotContain("<button", html);
     }
