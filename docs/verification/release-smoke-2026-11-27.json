@@ -1,0 +1,244 @@
+{
+  "schemaVersion": 1,
+  "issue": 31,
+  "date": "2026-11-27",
+  "repository": "mirora95/RecallDeck",
+  "result": "PASS",
+  "testedApplicationCommit": "48d55e91d0504fe4afc05aefd3a3fd23cd755078",
+  "documentationChangesOnly": true,
+  "sourceVerification": {
+    "files": 157,
+    "allFileBytesMatchedPreviouslyTestedArtifacts": true,
+    "documentationRevisionIsNotAnApplicationRuntimeRetest": true
+  },
+  "runtime": {
+    "dotnetSdk": "10.0.401",
+    "node": "24.14.1",
+    "playwrightCore": "1.65.1",
+    "chromiumHeadless": "151.0.7922.34",
+    "android": {
+      "version": "17",
+      "api": 37,
+      "architecture": "x86_64",
+      "kind": "emulator"
+    }
+  },
+  "automatedSuites": {
+    "dotnet": {
+      "passed": 483,
+      "failed": 0,
+      "skipped": 0
+    },
+    "node": {
+      "passed": 82,
+      "failed": 0
+    },
+    "nativeIndexedDb": {
+      "passed": 65,
+      "failed": 0
+    }
+  },
+  "artifacts": {
+    "androidApks": [
+      {
+        "package": "io.github.mirora95.recalldeck",
+        "role": "shipping-debug-baseline-preserving-coverage-from-issue-30",
+        "sha256": "44c4c8d8ac3b5dda0567554aa3aea0c7c9f5a4248b48f5e99f94016b6fe32035",
+        "bytes": 48214752,
+        "installedHashMatched": true
+      },
+      {
+        "package": "io.github.mirora95.recalldeck.uismoke",
+        "role": "dedicated-destructive-recovery-host",
+        "sha256": "4e959d7ad8940a344dccec92349c943cbd89826e69d31d394a13973564d9129e",
+        "bytes": 48202380,
+        "installedHashMatched": true
+      },
+      {
+        "package": "io.github.mirora95.recalldeck.storagesmoke",
+        "role": "native-schema-and-transaction-contract-host",
+        "sha256": "6b8188c8718cdb6caa05516b742caf8b6cacf804b8c43302126fbd0d7078adf2",
+        "bytes": 22858049,
+        "installedHashMatched": true
+      }
+    ],
+    "publishedWeb": {
+      "repositoryRelativeDirectory": "artifacts/audit/web/wwwroot",
+      "files": 158,
+      "treeSha256": "0703f1bffd7fcf0394e157343f021c9357c48cb3dde6655cb2b70b2f0773d55e",
+      "treeHashDefinition": "SHA256 of UTF-8 lines sorted by relative POSIX path: file SHA256, two spaces, relative path, LF."
+    }
+  },
+  "transferredExports": [
+    {
+      "direction": "web-to-android",
+      "sha256": "684b194917b144eea6f5a9459d26768a10dd62508cc1be66178b16cc6d7b2da3",
+      "bytes": 1259,
+      "decks": 1,
+      "cards": 2,
+      "reviews": 2
+    },
+    {
+      "direction": "android-to-web",
+      "sha256": "4ea615e24c8135ee2bf4f59166a5f06afff4a74431c962cde663083355aeccf9",
+      "bytes": 1739,
+      "decks": 1,
+      "cards": 3,
+      "reviews": 3
+    }
+  ],
+  "journeys": {
+    "webStart": {
+      "result": "PASS",
+      "checks": [
+        "Real web create/two ratings/reload/export preserves all IDs, Unicode, both ratings, levels and exact100nsUTCticks",
+        "Rejected file and preview cancel preserve prior extra deck; controlled mid-transaction cards insert abort rolls back all prior rows; retained-preview retry restores exact exported data and survives reload"
+      ]
+    },
+    "android": {
+      "result": "PASS",
+      "package": "io.github.mirora95.recalldeck.uismoke",
+      "pids": [
+        "1677",
+        "2794"
+      ],
+      "checks": [
+        "Real Android picker imports the web-created shared fixture; dedicated incoming-card SQLite abort preserves prior empty data and retained-preview retry restores every field exactly",
+        "Android adds and reviews a third card in the same shared fixture without changing web-created identities/history",
+        "Actual cold restart changes PID, preserves every row, then system CreateDocument export preserves exact UUIDs/Unicode/levels/ratings/100nsUTCticks",
+        "System picker cancel, invalid-file rejection and preview cancel preserve changed prior data; real SQLite mid-restore abort rolls back deleted/inserted rows and explicit retry restores exact shared export"
+      ],
+      "originalImportedRowsComparedAfterThirdCard": true,
+      "systemPickerDownloadsLocationVerified": true
+    },
+    "webReturn": {
+      "result": "PASS",
+      "checks": [
+        "Native-exported evolving shared fixture imports on web with exact3cards/3events/IDs/Unicode/100nsUTCticks",
+        "Rejected file and preview cancel preserve prior extra deck; controlled mid-transaction cards insert abort rolls back all prior rows; retained-preview retry restores exact exported data and survives reload"
+      ]
+    },
+    "indexedDbContracts": {
+      "result": "PASS",
+      "cases": 65,
+      "migration": "Version 1 fields and version preserved on failure/cancellation; valid upgrade/reopen/retry at version 2."
+    },
+    "sqliteContracts": {
+      "result": "PASS",
+      "package": "io.github.mirora95.recalldeck.storagesmoke",
+      "phases": [
+        {
+          "pid": "2433",
+          "text": "PASS phase 1: native SQLite saved Unicode, identities, UTC schedule and history. Force-stop and reopen this test app."
+        },
+        {
+          "pid": "2513",
+          "text": "PASS phase 2: process restart, native SQLite review and replace-all rollback, cancel, retry, reopen, empty restore and cascade. Synthetic database removed."
+        }
+      ],
+      "migrated": {
+        "schemaVersion": 2,
+        "decks": 1,
+        "cards": 1,
+        "reviews": 1
+      }
+    },
+    "publishedCSharpInterop": {
+      "result": "PASS",
+      "phases": [
+        [
+          "PASS C# create/edit/review roundtrip",
+          "PASS immutable prior snapshot",
+          "PASS validated preview counts",
+          "PASS discarding preview performs no write",
+          "PASS canceled replacement",
+          "PASS cancel preserves every current field",
+          "PASS C# replace-all serializes every field and removes old records",
+          "READY: reload this page, then Run checks to verify persisted data and clean up the fixture."
+        ],
+        [
+          "PASS reload preserves every restored identity, Unicode and UTC schedule/history field",
+          "PASS current-data export roundtrip",
+          "PASS duplicate maps to InvalidOperationException",
+          "PASS empty replacement and exact synthetic fixture cleanup",
+          "COMPLETE"
+        ]
+      ]
+    }
+  },
+  "comparisons": {
+    "collections": "Sorted by stable record ID before comparison.",
+    "timestamps": "UTC ISO fractions parsed separately into BigInt 100 ns ticks; no millisecond truncation.",
+    "fields": "All deck/card/review IDs, references, session item IDs, text, levels, ratings, due and review ticks."
+  },
+  "cleanup": {
+    "emptyDedicatedBaselineRestored": true,
+    "ownedAndroidDocumentsRemoved": 3,
+    "browserOwnedRowsRemoved": true,
+    "storageSmokeSyntheticDatabaseRemoved": true,
+    "screenshotsCreated": 0,
+    "rawLearnerDataIncluded": false
+  },
+  "evidenceInputs": [
+    {
+      "name": "recalldeck-2026-11-27-release-web-start.json",
+      "sha256": "f8878d3f4809c3438af68d06817deda6dd44acf5e45ccc22107262de901cced2"
+    },
+    {
+      "name": "recalldeck-2026-11-27-release-native-runtime.json",
+      "sha256": "9b461217ce138f6b931c59ae4f2a52410e252575c8ed40e5d34c21e13c14a7cc"
+    },
+    {
+      "name": "recalldeck-2026-11-27-release-web-return.json",
+      "sha256": "3eb27217caaa2b5dc0c93b8ab6357354500a228437341db17164a291ea63d4f4"
+    },
+    {
+      "name": "recalldeck-2026-11-27-release-browser-contracts.json",
+      "sha256": "ea6819259c1265b350ea8fd93b8acb662848e55c2416ae819b8253904a2fe4dc"
+    },
+    {
+      "name": "recalldeck-2026-11-27-release-storage-runtime.json",
+      "sha256": "988635db48cb8be00976cc1bc02dfd988552f2d28da2615c1a0ba115f580bc2e"
+    },
+    {
+      "name": "recalldeck-2026-11-27-release-interop-runtime.json",
+      "sha256": "cdae7706d6988082c15cf229aa9151d7321d5f5b07375d173b4fb09f014955f4"
+    }
+  ],
+  "orchestration": "One-off local scripts and raw reports were outside Git. This sanitized summary is committed; those scripts are not repository commands.",
+  "limits": [
+    "Destructive native restore used the dedicated UiSmoke Debug package, not the shipping database.",
+    "Shipping Debug APK baseline-preserving coverage belongs to issue 30.",
+    "Quota/transaction faults were controlled injections, not real disk exhaustion.",
+    "No physical device, Release trimming/signing, power loss, eviction or additional browser-engine coverage.",
+    "Offline/PWA, lifecycle and accessibility acceptance have separate records; these recovery results do not extend that scope.",
+    "No application-code change was made for issue 31; documentation review, CI and delivery are separate gates."
+  ],
+  "freshApplicationCommitCommands": [
+    {
+      "command": "dotnet test tests/RecallDeck.Core.Tests -c Release --no-build --no-restore --verbosity minimal -m:2 -nr:false",
+      "result": "PASS",
+      "passed": 483,
+      "failed": 0,
+      "usesPreviouslyBuiltByteMatchedApplication": true
+    },
+    {
+      "command": "npm test",
+      "result": "PASS",
+      "passed": 82,
+      "failed": 0
+    },
+    {
+      "command": "dotnet publish tests/RecallDeck.Web.Interop -c Release -o artifacts/release/interop -m:2 -nr:false --verbosity minimal",
+      "result": "PASS",
+      "note": "Optional wasm-tools workload absent; published host runtime passed both phases."
+    },
+    {
+      "command": "dotnet build tests/RecallDeck.Android.StorageSmoke -c Debug -m:2 -nr:false -p:RuntimeIdentifier=android-x64 -p:EmbedAssembliesIntoApk=true -p:AndroidUseFastDeployment=false -p:AndroidPackageFormats=apk -p:AndroidSdkDirectory=\"<ANDROID_SDK>\" -p:JavaSdkDirectory=\"<JDK_21>\" --verbosity minimal",
+      "result": "PASS",
+      "warnings": 0,
+      "errors": 0,
+      "localPathsReplacedByPlaceholders": true
+    }
+  ]
+}
