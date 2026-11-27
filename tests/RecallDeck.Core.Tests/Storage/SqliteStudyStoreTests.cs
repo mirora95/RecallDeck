@@ -31,9 +31,131 @@ public sealed class SqliteStudyStoreTests : StudyStoreContractTests, IDisposable
         Assert.Equal(card, Assert.Single(snapshot.Cards));
     }
 
+    [Fact]
+    public async Task VersionOneUpgradePreservesEveryFieldAndReopensAtVersionTwo()
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "upgrade.db3");
+        RecallDeck.Storage.Checks.SqliteSmoke.SeedVersionOne(path);
+        using (var db = new SQLiteConnection(path))
+            Assert.Equal(1, db.ExecuteScalar<int>("PRAGMA user_version"));
+
+        await RecallDeck.Storage.Checks.SqliteSmoke.CheckSavedAsync(path);
+        await RecallDeck.Storage.Checks.SqliteSmoke.CheckSavedAsync(path);
+
+        using var upgraded = new SQLiteConnection(path);
+        Assert.Equal(2, upgraded.ExecuteScalar<int>("PRAGMA user_version"));
+        Assert.Equal(4, upgraded.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'"));
+    }
+
+    [Fact]
+    public async Task UpgradeRetainsUnrelatedObjectsAndRows()
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "objects.db3");
+        RecallDeck.Storage.Checks.SqliteSmoke.SeedVersionOne(path);
+        string[] objects;
+        using (var db = new SQLiteConnection(path))
+        {
+            db.Execute("CREATE TABLE Extension (Value TEXT)");
+            db.Execute("INSERT INTO Extension VALUES (?)", "日本語 😀");
+            db.Execute("CREATE INDEX ExtensionValue ON Extension(Value)");
+            db.Execute("CREATE VIEW ExtensionView AS SELECT Value FROM Extension");
+            db.Execute("CREATE TRIGGER ExtensionTrigger AFTER UPDATE ON Extension BEGIN SELECT 1; END");
+            objects = db.Query<SchemaObject>("SELECT sql AS Sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY name").Select(row => row.Sql).ToArray();
+        }
+
+        await RecallDeck.Storage.Checks.SqliteSmoke.CheckSavedAsync(path);
+
+        using var upgraded = new SQLiteConnection(path);
+        var after = upgraded.Query<SchemaObject>("SELECT sql AS Sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'Validate%' ORDER BY name").Select(row => row.Sql).ToArray();
+        Assert.Equal(objects, after);
+        Assert.Equal("日本語 😀", upgraded.ExecuteScalar<string>("SELECT Value FROM ExtensionView"));
+    }
+
+    public sealed class SchemaObject
+    {
+        public string Sql { get; set; } = "";
+    }
+
+    [Fact]
+    public async Task LastTriggerCollisionRollsBackEarlierTriggersAndAllowsRetry()
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "collision.db3");
+        RecallDeck.Storage.Checks.SqliteSmoke.SeedVersionOne(path);
+        using (var db = new SQLiteConnection(path))
+            db.Execute("CREATE TRIGGER ValidateReviewRatingUpdate BEFORE UPDATE ON Reviews BEGIN SELECT 1; END");
+        var original = await File.ReadAllBytesAsync(path);
+
+        await Assert.ThrowsAsync<IOException>(() => new SqliteStudyStore(path).ReadSnapshotAsync());
+
+        Assert.Equal(original, await File.ReadAllBytesAsync(path));
+        using (var db = new SQLiteConnection(path))
+        {
+            Assert.Equal(1, db.ExecuteScalar<int>("PRAGMA user_version"));
+            Assert.Equal(1, db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'"));
+            db.Execute("DROP TRIGGER ValidateReviewRatingUpdate");
+        }
+        await RecallDeck.Storage.Checks.SqliteSmoke.CheckSavedAsync(path);
+        using var upgraded = new SQLiteConnection(path);
+        Assert.Equal(2, upgraded.ExecuteScalar<int>("PRAGMA user_version"));
+    }
+
+    [Theory]
+    [InlineData("Cards", "Level", "6")]
+    [InlineData("Cards", "Level", "-1")]
+    [InlineData("Cards", "Level", "1.5")]
+    [InlineData("Cards", "Level", "'bad'")]
+    [InlineData("Reviews", "Rating", "2")]
+    [InlineData("Reviews", "Rating", "-1")]
+    [InlineData("Reviews", "Rating", "0.5")]
+    [InlineData("Reviews", "Rating", "'bad'")]
+    public async Task InvalidVersionOneValuesPreserveFileAndVersion(string table, string column, string value)
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "invalid.db3");
+        RecallDeck.Storage.Checks.SqliteSmoke.SeedVersionOne(path);
+        using (var db = new SQLiteConnection(path)) db.Execute($"UPDATE {table} SET {column} = {value}");
+        var original = await File.ReadAllBytesAsync(path);
+
+        var failure = await Assert.ThrowsAsync<IOException>(() => new SqliteStudyStore(path).ReadSnapshotAsync());
+
+        Assert.Contains("Preserve", failure.Message);
+        Assert.Equal(original, await File.ReadAllBytesAsync(path));
+        using var unchanged = new SQLiteConnection(path);
+        Assert.Equal(1, unchanged.ExecuteScalar<int>("PRAGMA user_version"));
+        Assert.Equal(0, unchanged.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'"));
+    }
+
+    [Theory]
+    [InlineData("Cards", "Level", "6")]
+    [InlineData("Cards", "Level", "-1")]
+    [InlineData("Cards", "Level", "1.5")]
+    [InlineData("Cards", "Level", "'bad'")]
+    [InlineData("Reviews", "Rating", "2")]
+    [InlineData("Reviews", "Rating", "-1")]
+    [InlineData("Reviews", "Rating", "0.5")]
+    [InlineData("Reviews", "Rating", "'bad'")]
+    public async Task VersionTwoRejectsInvalidInsertAndUpdateAtPersistenceBoundary(string table, string column, string value)
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "bounds.db3");
+        RecallDeck.Storage.Checks.SqliteSmoke.SeedVersionOne(path);
+        await RecallDeck.Storage.Checks.SqliteSmoke.CheckSavedAsync(path);
+        using var db = new SQLiteConnection(path);
+
+        Assert.Throws<SQLiteException>(() => db.Execute($"UPDATE {table} SET {column} = {value}"));
+        var insert = table == "Cards"
+            ? $"INSERT INTO Cards SELECT 'other', DeckId, Front, Back, {value}, DueAtTicks FROM Cards"
+            : $"INSERT INTO Reviews SELECT 'other', CardId, 'other-session', {value}, ReviewedAtTicks FROM Reviews";
+        Assert.Throws<SQLiteException>(() => db.Execute(insert));
+        await RecallDeck.Storage.Checks.SqliteSmoke.CheckSavedAsync(path);
+    }
+
     [Theory]
     [InlineData(0)]
-    [InlineData(2)]
+    [InlineData(3)]
     public async Task UnknownExistingDatabaseIsNotReset(int version)
     {
         Directory.CreateDirectory(directory);

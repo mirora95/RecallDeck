@@ -6,11 +6,11 @@ import { cases } from "./storage-cases.mjs";
 for (const event of ["error", "blocked"]) {
     test(`newer-schema verification rejects an open ${event} instead of hanging`, async () => {
         const open = indexedDB.open;
-        let versionTwoOpens = 0, timer, lateConnectionClosed = false;
+        let versionThreeOpens = 0, timer, lateConnectionClosed = false;
         const failure = new DOMException("Injected verification open failure", "UnknownError");
         try {
             indexedDB.open = function (name, version) {
-                if (version !== 2 || ++versionTwoOpens !== 2) return open.call(this, name, version);
+                if (version !== 3 || ++versionThreeOpens !== 2) return open.call(this, name, version);
                 const request = { error: failure };
                 queueMicrotask(() => {
                     request[`on${event}`]?.();

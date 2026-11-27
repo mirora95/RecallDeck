@@ -40,6 +40,19 @@ public sealed class IndexedDbInteropTests
     }
 
     [Fact]
+    public async Task MigrationFailureExplainsHowToPreserveExistingBrowserData()
+    {
+        var js = new Interop { Result = new { error = "migration" } };
+
+        var error = await Assert.ThrowsAsync<IOException>(() => new IndexedDbStudyStore(js).ReadSnapshotAsync());
+
+        Assert.Contains("matching app", error.Message);
+        Assert.Contains("verified backup", error.Message);
+        Assert.Contains("do not clear", error.Message);
+        Assert.True(js.Disposed);
+    }
+
+    [Fact]
     public async Task CancellationBeforeOpeningDoesNotCallJavascript()
     {
         var js = new Interop();

@@ -16,11 +16,27 @@ public static class SqliteSmoke
     public static async Task SeedAsync(string path)
     {
         if (File.Exists(path)) throw new InvalidOperationException("Preserve existing smoke data: resume verification instead.");
-        var store = new SqliteStudyStore(path);
-        await store.CreateDeckAsync(Deck);
-        await store.CreateCardAsync(Card);
-        await store.ApplyReviewAsync(Review, Next);
+        SeedVersionOne(path);
         await CheckSavedAsync(path);
+    }
+
+    public static void SeedVersionOne(string path)
+    {
+        if (File.Exists(path)) throw new InvalidOperationException("Preserve existing smoke data: resume verification instead.");
+        using var db = new SQLiteConnection(path);
+        db.RunInTransaction(() =>
+        {
+            // The shipped version-1 DDL is a fixture, independent of production initialization.
+            db.Execute("CREATE TABLE Decks (Id TEXT PRIMARY KEY NOT NULL, Title TEXT NOT NULL, Description TEXT NOT NULL)");
+            db.Execute("CREATE TABLE Cards (Id TEXT PRIMARY KEY NOT NULL, DeckId TEXT NOT NULL REFERENCES Decks(Id) ON DELETE CASCADE, Front TEXT NOT NULL, Back TEXT NOT NULL, Level INTEGER NOT NULL, DueAtTicks INTEGER NOT NULL)");
+            db.Execute("CREATE TABLE Reviews (Id TEXT PRIMARY KEY NOT NULL, CardId TEXT NOT NULL REFERENCES Cards(Id) ON DELETE CASCADE, SessionItemId TEXT NOT NULL UNIQUE, Rating INTEGER NOT NULL, ReviewedAtTicks INTEGER NOT NULL)");
+            db.Execute("CREATE INDEX CardsByDeck ON Cards(DeckId)");
+            db.Execute("CREATE INDEX ReviewsByCard ON Reviews(CardId)");
+            db.Execute("INSERT INTO Decks VALUES (?, ?, ?)", Deck.Id.ToString(), Deck.Title, Deck.Description);
+            db.Execute("INSERT INTO Cards VALUES (?, ?, ?, ?, ?, ?)", Card.Id.ToString(), Card.DeckId.ToString(), Card.Front, Card.Back, Next.Level, Next.DueAt.UtcTicks);
+            db.Execute("INSERT INTO Reviews VALUES (?, ?, ?, ?, ?)", Review.Id.ToString(), Review.CardId.ToString(), Review.SessionItemId.ToString(), (int)Review.Rating, Review.ReviewedAt.UtcTicks);
+            db.Execute("PRAGMA user_version = 1");
+        });
     }
 
     public static async Task VerifyRestartAndRollbackAsync(string path)
@@ -58,9 +74,12 @@ public static class SqliteSmoke
             throw new InvalidOperationException("Cascade left related records.");
     }
 
-    private static async Task CheckSavedAsync(string path)
+    public static async Task CheckSavedAsync(string path)
     {
         var saved = await new SqliteStudyStore(path).ReadSnapshotAsync();
+        using var db = new SQLiteConnection(path);
+        if (db.ExecuteScalar<int>("PRAGMA user_version") != 2)
+            throw new InvalidOperationException("Version-1 smoke fixture did not upgrade to version 2.");
         var expectedCard = new Card(Card.Id, Deck.Id, Card.Front, Card.Back, Next);
         if (saved.Decks.Count != 1 || saved.Decks[0] != Deck || saved.Cards.Count != 1 || saved.Cards[0] != expectedCard ||
             saved.Reviews.Count != 1 || saved.Reviews[0] != Review)
