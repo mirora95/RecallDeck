@@ -360,6 +360,7 @@ public sealed class ReviewTests : BunitContext
             await Inner.ApplyReviewAsync(review, schedule, token);
             if (FailAfterCommit) throw new IOException("private uncertain commit");
         }
+        public Task ReplaceAllAsync(StudySnapshot snapshot, CancellationToken cancellationToken = default) => Inner.ReplaceAllAsync(snapshot, cancellationToken);
         public Task CreateDeckAsync(Deck deck, CancellationToken t = default) => Inner.CreateDeckAsync(deck, t);
         public Task UpdateDeckAsync(Deck deck, CancellationToken t = default) => Inner.UpdateDeckAsync(deck, t);
         public Task DeleteDeckAsync(Guid id, CancellationToken t = default) => Inner.DeleteDeckAsync(id, t);

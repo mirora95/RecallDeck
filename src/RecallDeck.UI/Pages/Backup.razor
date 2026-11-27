@@ -1,6 +1,160 @@
 @page "/backup"
+@implements IDisposable
+@using RecallDeck.Core.Backup
+@using RecallDeck.UI.Backup
+@inject StudyBackupService Backups
+@inject IBackupFiles Files
+@inject TimeProvider Clock
 
 <PageTitle>Backup · RecallDeck</PageTitle>
 <h1 tabindex="-1">Backup</h1>
 <p class="lead">Keep a copy of what you learn.</p>
-<p>Backup is not available yet. JSON export and restore are planned for the first release. This build cannot export or restore backups.</p>
+<p>Your study data stays on this device. In a browser, it belongs to this site address and browser profile; clearing site data or storage eviction can remove it. Keep a backup outside the app.</p>
+
+<div class="backup-workspace" aria-busy="@busy.ToString().ToLowerInvariant()">
+    <section aria-labelledby="export-heading">
+        <h2 id="export-heading">Export current data</h2>
+        <p>Save your decks, cards, schedules and review history as a versioned JSON file. Export a copy before replacing your data.</p>
+        <button id="export-backup" type="button" disabled="@busy" @onclick="ExportAsync">Export current data</button>
+    </section>
+
+    <section aria-labelledby="restore-heading">
+        <h2 id="restore-heading">Restore a backup</h2>
+        <p>Choose a RecallDeck JSON backup, up to 10 MiB. We check the entire file before showing a preview. Choosing a file does not change your data.</p>
+        <button id="choose-backup" class="secondary" type="button" disabled="@busy" @onclick="ChooseAsync">Choose backup file</button>
+
+        @if (preview is not null)
+        {
+            <div class="restore-preview">
+                <h3>Ready to restore</h3>
+                <p id="backup-filename">@fileName</p>
+                <p id="restore-counts">@preview.DeckCount decks · @preview.CardCount cards · @preview.ReviewCount reviews</p>
+                <p id="restore-warning"><strong>Replace ALL current study data?</strong> This replaces every current deck, card, schedule and review with this backup. It cannot be undone in the app. Export current data above first if you want to keep a copy.</p>
+                @if (preview.DeckCount == 0 && preview.CardCount == 0 && preview.ReviewCount == 0)
+                {
+                    <p id="empty-warning"><strong>This backup is empty.</strong> Restoring it removes all current study data.</p>
+                }
+                <div class="form-actions">
+                    <button id="cancel-restore" class="secondary" type="button" disabled="@busy" @onclick="Cancel">Cancel restore</button>
+                    <button id="confirm-restore" type="button" disabled="@busy" @onclick="ConfirmAsync">Replace all current data</button>
+                </div>
+            </div>
+        }
+    </section>
+</div>
+@if (error is not null)
+{
+    <p role="alert">@error</p>
+}
+<p id="backup-status" role="status" aria-live="polite">@(busy ? busyMessage : status)</p>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private StudyRestorePreview? preview;
+    private string? fileName;
+    private string? error;
+    private string status = "";
+    private string busyMessage = "";
+    private bool busy;
+    private bool disposed;
+
+    private async Task ExportAsync()
+    {
+        if (busy || disposed) return;
+        Begin("Preparing your backup…");
+        var token = lifetime.Token;
+        try
+        {
+            var bytes = await Backups.ExportCurrentAsync(token);
+            if (disposed) return;
+            var result = await Files.SaveAsync($"recalldeck-{Clock.GetUtcNow():yyyy-MM-dd}.json", bytes, token);
+            if (disposed) return;
+            status = result switch
+            {
+                BackupSaveResult.Saved => "Backup saved to your selected document.",
+                BackupSaveResult.DownloadRequested => "Download requested. Check your browser's downloads; this app cannot confirm that the file was saved to disk.",
+                _ => "Export canceled. No backup was saved."
+            };
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            if (!disposed) error = "We could not export your backup. Check available storage and try Export current data again. Your study data was not changed.";
+        }
+        finally { if (!disposed) busy = false; }
+    }
+
+    private async Task ChooseAsync()
+    {
+        if (busy || disposed) return;
+        Begin("Waiting for a backup file…");
+        // A new selection always needs its own validated preview.
+        preview = null;
+        fileName = null;
+        var token = lifetime.Token;
+        try
+        {
+            var file = await Files.OpenAsync(token);
+            if (disposed) return;
+            if (file is null) { status = "Selection canceled. Your study data was not changed."; return; }
+            preview = Backups.Preview(file.Content);
+            fileName = file.Name;
+            status = "Backup checked. Review the counts before deciding whether to replace your data.";
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (ArgumentException)
+        {
+            if (!disposed) error = "This backup is invalid or larger than 10 MiB. Choose a complete, supported RecallDeck JSON backup. Your study data was not changed.";
+        }
+        catch (Exception)
+        {
+            if (!disposed) error = "We could not open this backup. Try choosing the file again. Your study data was not changed.";
+        }
+        finally { if (!disposed) busy = false; }
+    }
+
+    private void Cancel()
+    {
+        if (busy || disposed) return;
+        preview = null;
+        fileName = null;
+        error = null;
+        status = "Restore canceled. Your study data was not changed.";
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (busy || disposed || preview is null) return;
+        Begin("Replacing study data…");
+        var token = lifetime.Token;
+        try
+        {
+            await Backups.ConfirmRestoreAsync(preview, token);
+            if (disposed) return;
+            preview = null;
+            fileName = null;
+            status = "Restore complete. Open Decks or Review to use your restored data.";
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            if (!disposed) error = "We could not confirm the restore. The checked preview is still here. Keep your backup, check available storage, and choose Replace all current data to retry, or Cancel restore.";
+        }
+        finally { if (!disposed) busy = false; }
+    }
+
+    private void Begin(string message)
+    {
+        busy = true;
+        error = null;
+        status = "";
+        busyMessage = message;
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
+}

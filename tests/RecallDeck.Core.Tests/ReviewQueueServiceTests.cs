@@ -200,6 +200,7 @@ public class ReviewQueueServiceTests
             return read(cancellationToken);
         }
 
+        public Task ReplaceAllAsync(StudySnapshot snapshot, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task CreateDeckAsync(Deck deck, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task UpdateDeckAsync(Deck deck, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task DeleteDeckAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();

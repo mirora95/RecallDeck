@@ -230,6 +230,7 @@ public class DecksTests : BunitContext
                 : ReadGate?.Task ?? Inner.ReadSnapshotAsync(cancellationToken);
         }
 
+        public Task ReplaceAllAsync(StudySnapshot snapshot, CancellationToken cancellationToken = default) => Inner.ReplaceAllAsync(snapshot, cancellationToken);
         public async Task CreateDeckAsync(Deck deck, CancellationToken cancellationToken = default)
         {
             CreateCalls++;

@@ -1,12 +1,13 @@
 # Study storage behavior
 
-`RecallDeck.Core.Storage.IStudyStore` defines the behavior that Android SQLite and browser IndexedDB adapters must implement. It has no platform or database dependency. The in-memory implementation is **test-only**. The web host registers `IndexedDbStudyStore`; the Android host registers `SqliteStudyStore`. Shared review screens remain a separate task.
+`RecallDeck.Core.Storage.IStudyStore` defines the behavior that Android SQLite and browser IndexedDB adapters must implement. It has no platform or database dependency. The in-memory implementation is **test-only**. The web host registers `IndexedDbStudyStore`; the Android host registers `SqliteStudyStore`. Shared deck, card and review screens use the registered store through Core services.
 
 ## Operations
 
 | Operation | Required behavior |
 | --- | --- |
 | ReadSnapshotAsync | Return a coherent, immutable snapshot of decks, cards and review events. Later writes must not alter a previously returned snapshot. |
+| ReplaceAllAsync | Validate the entire snapshot before writing, then atomically replace all decks, cards and history. Empty snapshots remove all related records. Confirmation belongs to the application/UI operation. |
 | CreateDeckAsync / CreateCardAsync | Add a new identity; reject duplicates. A card must reference an existing deck. |
 | UpdateDeckAsync | Replace the fields of an existing deck while retaining its ID. Never upsert a missing ID. |
 | UpdateCardAsync | Update content only. Preserve ID, deck and schedule; review scheduling goes through ApplyReviewAsync. Never upsert. |
@@ -14,7 +15,9 @@
 | DeleteDeckAsync | Remove an existing deck, its cards and their history atomically. Confirmation belongs to the application/UI operation, not the adapter. |
 | ApplyReviewAsync | Update the existing card's schedule and append one review event in the same transaction. Preserve its content/deck. Reject duplicate review IDs or session-item IDs. |
 
-Inputs are validated immutable Core values. `ReviewEvent` carries a nonempty review ID, card ID and session-item ID, a defined rating and UTC review instant. The application review operation will calculate the schedule using ReviewScheduler; this storage contract does not calculate intervals or run a review session.
+Inputs are validated immutable Core values. `ReviewEvent` carries a nonempty review ID, card ID and session-item ID, a defined rating and UTC review instant. The application review operation calculates the schedule using ReviewScheduler; this storage contract does not calculate intervals or run a review session.
+
+`StudySnapshot.Validate()` checks nonnull rows, unique collection IDs, unique review session items, deck/card references and strict Unicode text. `ReplaceAllAsync` calls it before any destructive work and rejects invalid snapshots with `ArgumentException`. Existing IDs may be reused in a replacement. It does not re-encode the snapshot or impose an export-byte limit; the backup codec validates the actual selected file's 10 MiB limit before preview. All adapters keep schema version 2 unchanged. SQLite deletes/inserts within one transaction; IndexedDB validates collection integrity, clears/adds all three stores in one readwrite transaction and reports success only after completion.
 
 Unknown deck/card references throw `KeyNotFoundException`. Duplicate identities, duplicate session items or prohibited content-update changes throw `InvalidOperationException`. Model validation uses `ArgumentException` with a field parameter name. I/O/storage exceptions and `OperationCanceledException` propagate; do not convert them into successful saves or clear data as recovery.
 
@@ -48,6 +51,8 @@ This is a WebAssembly-only adapter: an in-process JS reference lets cancellation
 
 `npm ci --ignore-scripts` then `npm test` runs the JS behavioral cases with test-only `fake-indexeddb`. They cover CRUD, identities, snapshot isolation, duplicate/orphan rejection, schedule/history atomicity, cascades, concurrent connections, rollback/retry, cancellation, unavailable/quota storage, explicit version-1-to-2 field preservation, failed/malformed upgrade rollback and retry, upgrade cancellation, unknown layouts, numeric bounds and refusal to reset a newer schema. Linked-source .NET tests check Core deserialization, contract exceptions, actionable migration errors and interop cancellation/lifetime. They do not substitute for native browser tests.
 
+Replacement cases additionally cover full/empty snapshots, invalid input before clear requests, request failure after destructive work, cancellation, rollback, retry and reopening. The inherited .NET contract checks the in-memory reference and production SQLite adapter; the native SQLite smoke repeats replacement rollback using an actual failing insert trigger. Browser cases run against both fake-indexeddb and the existing native browser fixture when that fixture is explicitly executed.
+
 For native IndexedDB, serve the repository root on **loopback only**, with JavaScript MIME types for `.mjs` and `.js`. For example with Python 3:
 
 ```sh
@@ -62,7 +67,7 @@ To check the actual C# adapter and Blazor interop, use the separate test host:
 dotnet run --project tests/RecallDeck.Web.Interop --no-launch-profile --urls http://127.0.0.1:5193
 ```
 
-Open `http://127.0.0.1:5193`, click **Run checks**, reload, then click **Run checks** again. The first phase saves/edits a synthetic Unicode deck/card and review; the second verifies persistence and removes only that guarded fixture. Use a dedicated test origin, never a learner's installation; unexpected existing data stops cleanup. Its build copies the production JS module into an ignored test asset. The test host and browser fixture are not included in the shipping app. Chrome coverage does not establish Safari, Android runtime, quota exhaustion, power-loss or eviction behavior.
+Open `http://127.0.0.1:5193`, click **Run checks**, reload, then click **Run checks** again. The first phase saves/edits synthetic Unicode data, validates/discards a preview, verifies cancellation preserves all fields, then confirms a replacement through the actual C# bridge. The second checks every restored field after reload, exports current data and removes only that exact guarded fixture using an empty replacement. Use a dedicated test origin, never a learner's installation; unexpected existing data stops cleanup. Its build copies the production JS module into an ignored test asset. The test host and browser fixture are not included in the shipping app. Building these fixtures does not establish native runtime results. Chrome coverage does not establish Safari, Android runtime, quota exhaustion, power-loss or eviction behavior.
 
 ## Primary references
 

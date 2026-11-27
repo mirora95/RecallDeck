@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using RecallDeck.UI;
+using RecallDeck.Core.Backup;
+using RecallDeck.UI.Backup;
 using RecallDeck.Core.Storage;
 using RecallDeck.Core.Tests.Storage;
 
@@ -20,6 +22,8 @@ public class NavigationTests : BunitContext
         Services.AddScoped<ReviewScheduler>();
         Services.AddScoped<CardService>();
         Services.AddScoped<ReviewQueueService>();
+        Services.AddScoped<StudyBackupService>();
+        Services.AddSingleton<IBackupFiles>(new BackupPageTests.Files());
     }
 
     [Theory]
@@ -51,7 +55,14 @@ public class NavigationTests : BunitContext
             return;
         }
 
-        Assert.Contains(path == "/" ? "Backups are planned" : "not available yet", page.Find("main").TextContent);
+        if (path == "/backup")
+        {
+            Assert.Single(page.FindAll("#export-backup"));
+            Assert.Single(page.FindAll("#choose-backup"));
+            return;
+        }
+
+        Assert.Contains(path == "/" ? "backups are available" : "not available yet", page.Find("main").TextContent);
         Assert.Empty(page.FindAll("main input, main button"));
     }
 

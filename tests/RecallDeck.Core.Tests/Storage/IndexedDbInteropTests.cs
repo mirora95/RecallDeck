@@ -7,6 +7,49 @@ namespace RecallDeck.Core.Tests.Storage;
 public sealed class IndexedDbInteropTests
 {
     [Fact]
+    public async Task ReplacementPassesOneValidatedCompleteSnapshotToJavascript()
+    {
+        var deck = new Deck(Guid.NewGuid(), "日本語 😀");
+        var card = new Card(Guid.NewGuid(), deck.Id, "front", "back", new ReviewSchedule(4, DateTimeOffset.UnixEpoch.AddTicks(7)));
+        var review = new ReviewEvent(Guid.NewGuid(), card.Id, Guid.NewGuid(), ReviewRating.Again, DateTimeOffset.UnixEpoch);
+        var snapshot = new RecallDeck.Core.Storage.StudySnapshot([deck], [card], [review]);
+        var js = new Interop();
+
+        await new IndexedDbStudyStore(js).ReplaceAllAsync(snapshot);
+
+        Assert.Equal("replaceAll", js.Operation);
+        Assert.Same(snapshot, js.Value);
+        Assert.True(js.Disposed);
+    }
+
+    [Fact]
+    public async Task InvalidReplacementDoesNotOpenJavascript()
+    {
+        var deck = new Deck(Guid.NewGuid(), "duplicate");
+        var js = new Interop();
+
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => new IndexedDbStudyStore(js).ReplaceAllAsync(new([deck, deck], [], [])));
+
+        Assert.False(js.Opened);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReplacementCancellationUsesTheActualTransactionOutcome(bool aborted)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var js = new Interop { BeforeFinish = cancellation.Cancel, Result = aborted ? new { error = "canceled" } : (object)new { } };
+
+        var failure = await Record.ExceptionAsync(() => new IndexedDbStudyStore(js).ReplaceAllAsync(new([], [], []), cancellation.Token));
+
+        if (aborted) Assert.IsAssignableFrom<OperationCanceledException>(failure);
+        else Assert.Null(failure);
+        Assert.True(js.Canceled);
+        Assert.True(js.Disposed);
+    }
+
+    [Fact]
     public async Task SnapshotRehydratesValidatedImmutableCoreValues()
     {
         var deck = new Deck(Guid.NewGuid(), "日本語 😀");
@@ -120,6 +163,7 @@ public sealed class IndexedDbInteropTests
         public bool Canceled { get; private set; }
         public bool Disposed { get; private set; }
         public string? Operation { get; private set; }
+        public object? Value { get; private set; }
 
         public TValue Invoke<TValue>(string identifier, params object?[]? args)
         {
@@ -131,6 +175,7 @@ public sealed class IndexedDbInteropTests
             }
             Assert.Equal("begin", identifier);
             Operation = (string)args![0]!;
+            Value = args[1];
             return (TValue)(object)this;
         }
 

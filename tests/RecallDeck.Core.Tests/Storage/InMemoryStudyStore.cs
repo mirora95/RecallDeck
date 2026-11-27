@@ -18,6 +18,22 @@ internal sealed class InMemoryStudyStore : IStudyStore
         }
     }
 
+    public Task ReplaceAllAsync(StudySnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(snapshot);
+        snapshot.Validate();
+        return Change((decks, cards, reviews) =>
+        {
+            decks.Clear();
+            cards.Clear();
+            reviews.Clear();
+            decks.AddRange(snapshot.Decks);
+            cards.AddRange(snapshot.Cards);
+            reviews.AddRange(snapshot.Reviews);
+        }, cancellationToken);
+    }
+
     public Task CreateDeckAsync(Deck deck, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(deck);

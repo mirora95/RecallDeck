@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Unicode;
 using RecallDeck.Core.Storage;
 
 namespace RecallDeck.Core.Backup;
@@ -15,7 +17,7 @@ public static class StudyBackupCodec
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream))
+        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Encoder = JavaScriptEncoder.Create(UnicodeRanges.All) }))
         {
             writer.WriteStartObject();
             writer.WriteNumber("schemaVersion", 1);

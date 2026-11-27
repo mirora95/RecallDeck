@@ -92,11 +92,45 @@ public sealed class UiFailureStudyStoreTests : IDisposable
         Assert.Equal(next, retried.Cards.Single(c => c.Id == synthetic.Id).Schedule);
         Assert.Equal(next, retried.Cards.Single(c => c.Id == ordinary.Id).Schedule);
     }
+
+    [Fact]
+    public async Task RestoreFailureRollsBackAllCollectionsAndOrdinaryRestoreDoesNotConsumeIt()
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "restore.db3");
+        var store = new UiFailureStudyStore(path);
+        var deck = new Deck(Guid.NewGuid(), "Owned baseline");
+        var card = new Card(Guid.NewGuid(), deck.Id, "Baseline", "Answer", new(0, DateTimeOffset.UnixEpoch));
+        var review = new ReviewEvent(Guid.NewGuid(), card.Id, Guid.NewGuid(), ReviewRating.Remembered, DateTimeOffset.UnixEpoch);
+        var before = new RecallDeck.Core.Storage.StudySnapshot([deck], [card], [review]);
+        await store.ReplaceAllAsync(before);
+        var candidateDeck = new Deck(Guid.NewGuid(), "Owned replacement");
+        var candidateCard = new Card(Guid.NewGuid(), candidateDeck.Id, "[RecallDeck synthetic failed restore] Question", "Answer", card.Schedule);
+        var candidate = new RecallDeck.Core.Storage.StudySnapshot([candidateDeck], [candidateCard], []);
+
+        var failure = await Assert.ThrowsAsync<IOException>(() => store.ReplaceAllAsync(candidate));
+
+        Assert.Contains("synthetic UI restore failure", Assert.IsType<SQLiteException>(failure.InnerException).Message);
+        var failed = await new SqliteStudyStore(path).ReadSnapshotAsync();
+        Assert.Equal(before.Decks, failed.Decks);
+        Assert.Equal(before.Cards, failed.Cards);
+        Assert.Equal(before.Reviews, failed.Reviews);
+        using (var db = new SQLiteConnection(path))
+            Assert.Equal(0, db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'UiSmokeRestoreFail_%'"));
+
+        await store.ReplaceAllAsync(candidate);
+        var retried = await new SqliteStudyStore(path).ReadSnapshotAsync();
+        Assert.Equal(candidate.Decks, retried.Decks);
+        Assert.Equal(candidate.Cards, retried.Cards);
+        Assert.Empty(retried.Reviews);
+    }
+
     public void Dispose()
     {
         File.Delete(Path.Combine(directory, "study.db3"));
         File.Delete(Path.Combine(directory, "ordinary.db3"));
         File.Delete(Path.Combine(directory, "review.db3"));
+        File.Delete(Path.Combine(directory, "restore.db3"));
         if (Directory.Exists(directory)) Directory.Delete(directory);
     }
 }

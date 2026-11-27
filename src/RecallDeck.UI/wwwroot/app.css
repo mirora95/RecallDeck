@@ -79,3 +79,13 @@ textarea { resize: vertical; }
 #review-progress, #review-summary { font-variant-numeric: tabular-nums; }
 
 .review-actions button, .review-retry { min-height: 48px; }
+
+.backup-workspace { max-width: 48rem; margin-top: 3rem; }
+.backup-workspace section { border-top: 1px solid #c7cfc6; padding-block: 2rem; }
+.backup-workspace h2 { margin-bottom: .75rem; }
+.backup-workspace button { min-height: 48px; }
+.restore-preview { margin-top: 2rem; }
+.restore-preview h3 { font-size: 1.2rem; margin-bottom: .75rem; }
+#restore-counts { font-variant-numeric: tabular-nums; font-weight: 650; }
+#backup-filename { overflow-wrap: anywhere; }
+#empty-warning, #restore-warning { max-width: 65ch; }
