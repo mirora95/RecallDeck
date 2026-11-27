@@ -17,10 +17,113 @@ public sealed class ReviewTests : BunitContext
     public ReviewTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddScoped<RecallDeck.UI.AppNavigation>();
+        Services.AddScoped<RecallDeck.UI.AppLifecycle>();
         Services.AddSingleton<IStudyStore>(store);
         Services.AddSingleton<TimeProvider>(clock);
         Services.AddScoped<ReviewQueueService>();
         Services.AddScoped<ReviewScheduler>();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResumeDoesNotInsertNewlyDueCardsIntoActiveQueue(bool reveal)
+    {
+        var cards = await SeedAsync();
+        await store.Inner.CreateCardAsync(new Card(Guid.NewGuid(), cards[0].DeckId, "Future question", "Future answer",
+            new ReviewSchedule(0, Now.AddMinutes(1))));
+        var page = Render<Review>();
+        if (reveal) page.Find("#reveal-answer").Click();
+        var markup = page.Markup;
+        clock.Instant = Now.AddMinutes(2);
+
+        await Services.GetRequiredService<AppLifecycle>().ResumeAsync();
+
+        Assert.Equal(markup, page.Markup);
+        Assert.DoesNotContain("Future question", page.Markup);
+        Assert.Equal(0, store.Writes);
+    }
+
+    [Fact]
+    public async Task ResumeDuringRatingDoesNotDuplicateOrResetPendingWrite()
+    {
+        await SeedAsync();
+        var page = Render<Review>();
+        page.Find("#reveal-answer").Click();
+        store.WriteGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rating = page.Find("#rate-again").ClickAsync(new());
+        page.WaitForAssertion(() => Assert.Equal(1, store.Writes));
+
+        await Services.GetRequiredService<AppLifecycle>().ResumeAsync();
+
+        Assert.Single(page.FindAll(".review-answer"));
+        Assert.Equal(1, store.Writes);
+        store.WriteGate.SetResult();
+        await rating;
+        Assert.Single((await store.Inner.ReadSnapshotAsync()).Reviews);
+        Assert.Contains("Session complete", page.Markup);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResumeRefreshesEmptyOrCompletedQueueWhenAgainBecomesDue(bool complete)
+    {
+        await SeedAsync();
+        var page = Render<Review>();
+        page.Find("#reveal-answer").Click();
+        await page.Find("#rate-again").ClickAsync(new());
+        if (!complete)
+        {
+            page.Dispose();
+            page = Render<Review>();
+            Assert.Contains("No cards due", page.Markup);
+        }
+        clock.Instant = Now.AddMinutes(10);
+
+        await Services.GetRequiredService<AppLifecycle>().ResumeAsync();
+
+        Assert.Single(page.FindAll("#reveal-answer"));
+        Assert.Single((await store.Inner.ReadSnapshotAsync()).Reviews);
+    }
+
+    [Fact]
+    public async Task ResumePreservesActiveRevealedAndFailedRatingWithoutWriting()
+    {
+        await SeedAsync(2);
+        var page = Render<Review>();
+        page.Find("#reveal-answer").Click();
+        store.FailWrite = true;
+        await page.Find("#rate-again").ClickAsync(new());
+        var markup = page.Markup;
+        var writes = store.Writes;
+        clock.Instant = Now.AddDays(1);
+
+        await Services.GetRequiredService<AppLifecycle>().ResumeAsync();
+        await Services.GetRequiredService<AppLifecycle>().ResumeAsync();
+
+        Assert.Equal(markup, page.Markup);
+        Assert.Equal(writes, store.Writes);
+        Assert.Empty((await store.Inner.ReadSnapshotAsync()).Reviews);
+    }
+
+    [Fact]
+    public async Task DisposedReviewDoesNotRefreshAndRepeatedResumeCoalescesLoading()
+    {
+        var page = Render<Review>();
+        store.ReadGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lifecycle = Services.GetRequiredService<AppLifecycle>();
+        var first = lifecycle.ResumeAsync();
+        var second = lifecycle.ResumeAsync();
+        Assert.Same(first, second);
+        page.Dispose();
+        store.ReadGate.SetResult(new StudySnapshot([], [], []));
+
+        await first;
+        await second;
+        await lifecycle.ResumeAsync();
+        Assert.Empty((await store.Inner.ReadSnapshotAsync()).Reviews);
     }
 
     [Fact]

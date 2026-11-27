@@ -1,3 +1,5 @@
+@implements IDisposable
+@inject AppNavigation NavigationHistory
 @using Microsoft.AspNetCore.Components.Routing
 
 <Router AppAssembly="typeof(App).Assembly">
@@ -14,3 +16,7 @@
         </LayoutView>
     </NotFound>
 </Router>
+
+@code {
+    public void Dispose() => NavigationHistory.Dispose();
+}

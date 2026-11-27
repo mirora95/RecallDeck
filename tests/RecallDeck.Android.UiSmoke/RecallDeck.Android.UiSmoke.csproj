@@ -21,6 +21,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="10.0.20" />
     <ProjectReference Include="../../src/RecallDeck.UI/RecallDeck.UI.csproj" />
     <ProjectReference Include="../../src/RecallDeck.Storage.Sqlite/RecallDeck.Storage.Sqlite.csproj" />
+    <MauiXaml Include="../../src/RecallDeck.Mobile/MainPage.xaml" Link="MainPage.xaml" />
+    <Compile Include="../../src/RecallDeck.Mobile/MainPage.xaml.cs" Link="MainPage.xaml.cs" />
     <Compile Include="../../src/RecallDeck.Mobile/Backup/*.cs" Link="Backup/%(Filename)%(Extension)" />
     <Compile Include="../RecallDeck.Storage.Checks/UiFailureStudyStore.cs" Link="UiFailureStudyStore.cs" />
   </ItemGroup>

@@ -16,6 +16,8 @@ public class NavigationTests : BunitContext
     public NavigationTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddScoped<RecallDeck.UI.AppNavigation>();
+        Services.AddScoped<RecallDeck.UI.AppLifecycle>();
         Services.AddSingleton<IStudyStore, InMemoryStudyStore>();
         Services.AddScoped<DeckService>();
         Services.AddSingleton(TimeProvider.System);
@@ -24,6 +26,45 @@ public class NavigationTests : BunitContext
         Services.AddScoped<ReviewQueueService>();
         Services.AddScoped<StudyBackupService>();
         Services.AddSingleton<IBackupFiles>(new BackupPageTests.Files());
+    }
+
+    [Fact]
+    public async Task BackUsesSuccessfulRoutesAndRepeatedBlockedBackKeepsHistory()
+    {
+        var page = Render<App>();
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        var history = Services.GetRequiredService<AppNavigation>();
+        await page.InvokeAsync(() => navigation.NavigateTo("/decks"));
+        page.Find("#create-title").Input("Draft");
+
+        await page.InvokeAsync(() => history.GoBack());
+        await page.InvokeAsync(() => history.GoBack());
+
+        Assert.EndsWith("/decks", navigation.Uri);
+        Assert.Single(page.FindAll("#leave-confirmation"));
+        page.Find("#stay-on-page").Click();
+        await page.InvokeAsync(() => history.GoBack());
+        page.Find("#leave-page").Click();
+        Assert.Equal(navigation.BaseUri, navigation.Uri);
+        Assert.False(history.GoBack());
+    }
+
+    [Fact]
+    public void BackReturnsThroughRoutesAndDirectEntryFallsBackToHome()
+    {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/review?deck=00000000-0000-0000-0000-000000000001");
+        using var history = new AppNavigation(navigation);
+        Assert.True(history.GoBack());
+        Assert.Equal(navigation.BaseUri, navigation.Uri);
+
+        navigation.NavigateTo("/decks");
+        navigation.NavigateTo("/backup");
+        Assert.True(history.GoBack());
+        Assert.EndsWith("/decks", navigation.Uri);
+        Assert.True(history.GoBack());
+        Assert.Equal(navigation.BaseUri, navigation.Uri);
+        Assert.False(history.GoBack());
     }
 
     [Theory]

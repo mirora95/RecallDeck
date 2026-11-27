@@ -21,6 +21,8 @@ public sealed class BackupPageTests : BunitContext
     public BackupPageTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddScoped<RecallDeck.UI.AppNavigation>();
+        Services.AddScoped<RecallDeck.UI.AppLifecycle>();
         Services.AddSingleton<IStudyStore>(store);
         Services.AddSingleton<IBackupFiles>(files);
         Services.AddScoped<StudyBackupService>();

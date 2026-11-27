@@ -16,6 +16,8 @@ RecallDeck is an offline-first study app planned for **Android (.NET MAUI Blazor
 
 Accounts, cloud sync, AI-generated cards and paid integrations are outside the first release. Browser storage may be cleared or evicted; exportable backups are part of the release criteria.
 
+Android route Back and unsaved-edit confirmation, keyboard/system safe areas and read-only resume refresh are described in [Android lifecycle](docs/android-lifecycle.md). Active review queues keep their captured cards and revealed/pending state across resume. Emulator runtime evidence remains a separate release gate from compilation.
+
 ## Architecture
 
 | Project | Responsibility |

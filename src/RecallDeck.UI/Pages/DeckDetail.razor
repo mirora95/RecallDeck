@@ -1,9 +1,11 @@
 @page "/decks/{DeckId:guid}"
 @implements IDisposable
 @using RecallDeck.Core
+@using RecallDeck.UI.Components
 @inject DeckService DeckService
 @inject CardService CardService
-@inject NavigationManager Navigation
+
+<UnsavedChanges @ref="unsaved" Dirty="@IsDirty" Busy="@saving" OnDiscarded="StateHasChanged" OnStayed="FocusEditorAsync" />
 
 <PageTitle>@(deck?.Title ?? "Deck") · RecallDeck</PageTitle>
 <a href="/decks">Back to decks</a>
@@ -147,6 +149,10 @@ else if (deck is not null)
     private Guid? editingId;
     private string front = "";
     private string back = "";
+    private string originalFront = "";
+    private string originalBack = "";
+    private UnsavedChanges? unsaved;
+    private bool IsDirty => front != originalFront || back != originalBack;
     private string? frontError;
     private string? backError;
     private string? saveError;
@@ -155,6 +161,7 @@ else if (deck is not null)
     private string status = "";
     private string? focusTarget;
     private ElementReference frontInput;
+    private async Task FocusEditorAsync() => await frontInput.FocusAsync();
     private ElementReference cardsHeading;
     private ElementReference confirmationHeading;
 
@@ -257,13 +264,15 @@ else if (deck is not null)
         }
     }
 
-    private void BeginEdit(Card card)
+    private void BeginEdit(Card card) => unsaved?.Confirm(() => OpenEditor(card));
+
+    private void OpenEditor(Card card)
     {
         if (saving || confirming || editingId is not null) return;
 
         editingId = card.Id;
-        front = card.Front;
-        back = card.Back;
+        front = originalFront = card.Front;
+        back = originalBack = card.Back;
         frontError = backError = saveError = actionError = null;
         status = "";
         focusTarget = "editor";
@@ -272,11 +281,13 @@ else if (deck is not null)
     private void ClearEditor()
     {
         editingId = null;
-        front = back = "";
+        front = back = originalFront = originalBack = "";
         frontError = backError = saveError = null;
     }
 
-    private void CancelEdit()
+    private void CancelEdit() => unsaved?.Confirm(DiscardEdit);
+
+    private void DiscardEdit()
     {
         if (saving || confirming) return;
 
@@ -353,7 +364,12 @@ else if (deck is not null)
             if (deletingDeck)
             {
                 await DeckService.DeleteAsync(deck.Id);
-                if (current == version) Navigation.NavigateTo("/decks");
+                if (current == version)
+                {
+                    saving = false;
+                    ClearEditor();
+                    unsaved?.NavigateAfterSave("/decks");
+                }
             }
             else if (deletingCard is not null)
             {

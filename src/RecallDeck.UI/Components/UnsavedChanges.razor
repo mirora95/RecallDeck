@@ -1,0 +1,97 @@
+@inject NavigationManager Navigation
+
+<NavigationLock OnBeforeInternalNavigation="BeforeNavigation" />
+@if (pendingAction is not null)
+{
+    <section id="leave-confirmation" class="leave-confirmation" aria-labelledby="leave-heading">
+        <h2 id="leave-heading" tabindex="-1" @ref="heading">Discard unsaved changes?</h2>
+        <p>Your changes have not been saved. Stay to keep editing, or leave and discard them.</p>
+        <div class="form-actions">
+            <button id="stay-on-page" type="button" class="secondary" disabled="@Busy" @onclick="Stay">Stay</button>
+            <button id="leave-page" type="button" disabled="@Busy" @onclick="Leave">Leave and discard</button>
+        </div>
+    </section>
+}
+@if (blockedWhileSaving)
+{
+    <p role="status">Wait for saving to finish before leaving this page.</p>
+}
+
+@code {
+    [Parameter] public bool Dirty { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback OnDiscarded { get; set; }
+    [Parameter] public EventCallback OnStayed { get; set; }
+
+    private Action? pendingAction;
+    private bool allowed;
+    private bool focusPending;
+    private bool blockedWhileSaving;
+    private ElementReference heading;
+
+    private Task BeforeNavigation(LocationChangingContext context)
+    {
+        if (allowed)
+        {
+            allowed = false;
+            return Task.CompletedTask;
+        }
+        if (!Dirty && !Busy) return Task.CompletedTask;
+
+        context.PreventNavigation();
+        Confirm(() => NavigateAfterSave(context.TargetLocation));
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public void Confirm(Action discard, bool? dirty = null)
+    {
+        blockedWhileSaving = Busy;
+        if (Busy) return;
+        if (!(dirty ?? Dirty))
+        {
+            discard();
+            return;
+        }
+        if (pendingAction is not null) return;
+
+        pendingAction = discard;
+        focusPending = true;
+        StateHasChanged();
+    }
+
+    public void NavigateAfterSave(string uri)
+    {
+        allowed = true;
+        Navigation.NavigateTo(uri);
+    }
+
+    private async Task Stay()
+    {
+        if (Busy) return;
+        pendingAction = null;
+        blockedWhileSaving = false;
+        await OnStayed.InvokeAsync();
+    }
+
+    private async Task Leave()
+    {
+        if (Busy) return;
+        var discard = pendingAction;
+        pendingAction = null;
+        blockedWhileSaving = false;
+        discard?.Invoke();
+        await OnDiscarded.InvokeAsync();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!Busy) blockedWhileSaving = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!focusPending) return;
+        focusPending = false;
+        await heading.FocusAsync();
+    }
+}

@@ -6,6 +6,7 @@
 @inject ReviewQueueService QueueService
 @inject IStudyStore Store
 @inject TimeProvider Clock
+@inject AppLifecycle Lifecycle
 
 <PageTitle>Review · RecallDeck</PageTitle>
 <h1 tabindex="-1">Review</h1>
@@ -62,6 +63,7 @@ else
     private IReadOnlyList<Card> queue = [];
     private Guid? loadedDeckId;
     private bool initialized;
+    private bool disposed;
     private int version;
     private int index;
     private int reviewed;
@@ -77,6 +79,16 @@ else
     private string status = "";
     private bool focusCompletion;
     private ElementReference completionHeading;
+
+    protected override void OnInitialized() => Lifecycle.Resumed += ResumeAsync;
+
+    private Task ResumeAsync() => InvokeAsync(async () =>
+    {
+        if (disposed || loading || saving || (queue.Count > 0 && index < queue.Count)) return;
+
+        await LoadAsync();
+        if (!disposed) StateHasChanged();
+    });
 
     protected override Task OnParametersSetAsync()
     {
@@ -200,6 +212,8 @@ else
 
     public void Dispose()
     {
+        disposed = true;
+        Lifecycle.Resumed -= ResumeAsync;
         version++;
         focusCompletion = false;
     }
