@@ -15,12 +15,12 @@ a:hover { color: #102f25; }
 ::selection { color: #ffffff; background: #22624d; }
 .masthead, .primary-nav, .page { width: min(100% - 3rem, 68rem); margin-inline: auto; }
 .masthead { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1.4rem; border-bottom: 1px solid #c7cfc6; }
-.brand { font-weight: 750; font-size: 1.25rem; letter-spacing: -.03em; text-decoration: none; }
+.brand { display: inline-flex; align-items: center; min-height: 48px; font-weight: 750; font-size: 1.25rem; letter-spacing: -.03em; text-decoration: none; }
 .primary-nav { display: flex; flex-wrap: wrap; gap: .25rem; padding-block: .75rem; border-bottom: 1px solid #c7cfc6; }
-.primary-nav a { padding: .6rem .8rem; min-height: 44px; text-decoration: none; }
+.primary-nav a { padding: .6rem .8rem; min-height: 48px; text-decoration: none; }
 .primary-nav a:hover { text-decoration: underline; }
 .primary-nav a.active { color: #ffffff; background: #243e35; text-decoration: underline; }
-button { font: inherit; color: #ffffff; background: #243e35; border: 1px solid #243e35; padding: .6rem 1rem; cursor: pointer; min-height: 44px; }
+button { font: inherit; color: #ffffff; background: #243e35; border: 1px solid #243e35; padding: .6rem 1rem; cursor: pointer; min-height: 48px; min-width: 48px; }
 button:hover { background: #102f25; }
 .build-state { font-size: .85rem; color: #4f6056; }
 .page { padding-block: clamp(2.5rem, 7vw, 6rem); }
@@ -36,7 +36,7 @@ p { max-width: 70ch; }
 dt { font-weight: 650; }
 dd { margin: 0; }
 .note { font-size: .9rem; color: #4f6056; margin-top: 1.5rem; }
-.skip-link { position: absolute; top: -6rem; left: 1rem; padding: .6rem 1rem; background: #ffffff; z-index: 1; }
+.skip-link { position: absolute; top: -6rem; left: 1rem; min-height: 48px; padding: .6rem 1rem; background: #ffffff; z-index: 1; }
 .skip-link:focus { top: 1rem; }
 #release-plan { scroll-margin-top: 2rem; }
 #blazor-error-ui { display: none; position: fixed; bottom: 0; padding: 1rem; width: 100%; background: #fff2db; color: #50381b; border-top: 1px solid #98734b; }
@@ -99,8 +99,8 @@ textarea { resize: vertical; }
 .study-overview { max-width: 48rem; }
 .study-overview section { margin-top: 2.5rem; }
 .study-overview h2 { margin-bottom: 1rem; }
-.study-overview button, .study-action, .history-deck { min-height: 48px; }
-.study-action, .history-deck { display: inline-flex; align-items: center; padding-block: .6rem; }
+.study-overview button, .study-action, .history-deck, .deck-row h3 a { min-height: 48px; }
+.study-action, .history-deck, .deck-row h3 a { display: inline-flex; align-items: center; min-width: 48px; max-width: 100%; padding-block: .6rem; }
 .due-decks { margin-top: 2rem; }
 .due-deck-row h3 { margin-bottom: 0; }
 .deck-due-count { margin-block: .25rem; }
