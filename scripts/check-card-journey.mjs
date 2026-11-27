@@ -259,7 +259,7 @@ print(json.dumps({t.lower():[{k[0].lower()+k[1:]:r[k] for k in r.keys()} for r i
         await page.getByRole('button', { name: 'Delete card', exact: true }).click();
         assert((await page.locator('#delete-confirmation').textContent()).includes(editedFront));
         await page.locator('#confirm-delete').click();
-        await page.waitForFunction(() => document.querySelectorAll('.card-row').length === 0 && document.querySelector('[role="status"]')?.textContent === 'Card deleted.');
+        await page.waitForFunction(() => document.querySelectorAll('.card-row').length === 0 && document.querySelector('#main [role="status"]')?.textContent === 'Card deleted.');
         expectedCardIds = [];
         await assertOwned();
         check('Confirmed owned-card deletion removes its exact persisted ID');
