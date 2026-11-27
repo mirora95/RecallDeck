@@ -22,6 +22,7 @@
     <Using Include="Xunit" />
     <Compile Include="..\..\src\RecallDeck.Web\Storage\IndexedDbStudyStore.cs" Link="Storage\IndexedDbStudyStore.cs" />
     <Compile Include="..\RecallDeck.Storage.Checks\SqliteSmoke.cs" Link="Storage\SqliteSmoke.cs" />
+    <Compile Include="..\RecallDeck.Storage.Checks\UiFailureStudyStore.cs" Link="Storage\UiFailureStudyStore.cs" />
   </ItemGroup>
 
   <ItemGroup>
