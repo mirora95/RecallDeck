@@ -89,3 +89,5 @@ textarea { resize: vertical; }
 #restore-counts { font-variant-numeric: tabular-nums; font-weight: 650; }
 #backup-filename { overflow-wrap: anywhere; }
 #empty-warning, #restore-warning { max-width: 65ch; }
+
+#pwa-status { width: min(100% - 2rem, 68rem); margin: 1rem auto; padding: 1rem; border: 1px solid #75867a; overflow-wrap: anywhere; }

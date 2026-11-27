@@ -63,7 +63,7 @@ dotnet publish src/RecallDeck.Web -c Release -o artifacts/web
 dotnet run --project src/RecallDeck.Web --no-launch-profile --urls http://127.0.0.1:5189
 ```
 
-Open `http://127.0.0.1:5189` for the development host. The published PWA files are in `artifacts/web/wwwroot`; use a static server with correct WebAssembly MIME types to test them. Service-worker caching is enabled only in published builds. Full offline user flows are a later milestone, not a verified feature of this scaffold.
+Open `http://127.0.0.1:5189` for the development host. The published PWA files are in `artifacts/web/wwwroot`; use a static server with correct WebAssembly MIME types to test them. Service-worker caching is enabled only in published builds. After a first online load and successful service-worker installation, the published web app supports offline deck/card management, review and local backup export. A new version waits while any RecallDeck tab is open; the app asks you to save work, close all its tabs and reopen. It never forces an update or reload. See [published PWA behavior and checks](docs/pwa.md) for installation, storage/privacy limits and the repeatable two-version test.
 
 The Node storage suite needs Node 22 or later and uses `fake-indexeddb` 6.2.7 (Apache-2.0), a **test-only** implementation. Native Chrome and real .NET→JavaScript roundtrip/reload checks are described in the [storage verification instructions](docs/storage-contract.md#browser-adapter-verification). No JavaScript runtime dependency is shipped.
 
