@@ -1,18 +1,61 @@
 @page "/"
+@inherits StudyOverviewPage
 
 <PageTitle>Home · RecallDeck</PageTitle>
 <section class="introduction" aria-labelledby="welcome">
     <h1 id="welcome" tabindex="-1">Make room for what you learn.</h1>
     <p class="lead">A quieter place to collect questions, recall the answers, and return to them over time.</p>
-    <p>Create decks and write question-and-answer cards, with data saved on this device. Open Review to reveal due answers and choose Again or Remembered.</p>
-    <a class="plan-link" href="#release-plan">See what is coming</a>
+    <p>Create decks and write question-and-answer cards, with data saved on this device.</p>
 </section>
-<section id="release-plan" aria-labelledby="plan-title">
-    <h2 id="plan-title">A little practice, built to last.</h2>
-    <dl class="release-plan">
-        <div><dt>Your own questions</dt><dd>Create decks and plain-text question-and-answer cards.</dd></div>
-        <div><dt>A reason to return</dt><dd>Reveal each answer, rate your recall, and review it when it is due.</dd></div>
-        <div><dt>Learning that stays with you</dt><dd>Keep data locally and export a backup you can restore.</dd></div>
-    </dl>
-    <p class="note">Reviews and backups are available. Export a JSON copy or preview a backup before restoring all data. No account or cloud service is planned.</p>
+<section class="study-overview" aria-labelledby="due-heading" aria-busy="@Loading">
+    <h2 id="due-heading">Your next review</h2>
+    <button id="refresh-overview" class="secondary" type="button" disabled="@Loading" @onclick="RefreshAsync">Refresh</button>
+    @if (Loading)
+    {
+        <p role="status">Loading your review summary…</p>
+    }
+    else if (LoadFailed)
+    {
+        <div role="alert">
+            <p>We could not load your review summary. Try again to read your saved data. Allow site storage in a browser. Do not clear this app's data.</p>
+            <button id="retry-overview" type="button" @onclick="RefreshAsync">Try again</button>
+        </div>
+    }
+    else if (Overview is { } summary)
+    {
+        <p id="due-total" class="lead">@summary.DueCount @(summary.DueCount == 1 ? "card" : "cards") due now.</p>
+        @if (summary.DueCount > 0)
+        {
+            <p><a class="study-action" href="/review">Review due cards</a></p>
+        }
+        else if (summary.NextDueAt is { } next)
+        {
+            <p>Next scheduled review: <time id="next-review" datetime="@next.ToString("O")">@LocalDate(next)</time>.</p>
+        }
+        else
+        {
+            <p>No cards are scheduled. @(summary.Decks.Count == 0 ? "Create a deck, then add your first question and answer." : "Open a deck to add your first question and answer.")</p>
+        }
+        @if (summary.Decks.Count == 0)
+        {
+            <p><a class="study-action" href="/decks">Create a deck</a></p>
+        }
+        else
+        {
+            <ul class="deck-list due-decks" aria-label="Due cards by deck">
+                @foreach (var row in summary.Decks)
+                {
+                    <li class="deck-row due-deck-row" @key="row.Deck.Id">
+                        <h3><a href="@($"/decks/{row.Deck.Id}")">@row.Deck.Title</a></h3>
+                        <p class="deck-due-count">@row.DueCount due</p>
+                        @if (row.DueCount > 0)
+                        {
+                            <a class="study-action" href="@($"/review?deck={row.Deck.Id}")">Review this deck<span class="visually-hidden">: @row.Deck.Title</span></a>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        <p class="note">Counts reflect this refresh. Refresh to check again as time passes. Dates use this device's local time and show its UTC offset.</p>
+    }
 </section>

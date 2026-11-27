@@ -95,3 +95,19 @@ textarea { resize: vertical; }
 .leave-confirmation { border: 1px solid #75867a; padding: 1.5rem; margin-bottom: 2rem; }
 .leave-confirmation h2 { margin-bottom: .75rem; }
 .leave-confirmation button { min-height: 48px; }
+
+.study-overview { max-width: 48rem; }
+.study-overview section { margin-top: 2.5rem; }
+.study-overview h2 { margin-bottom: 1rem; }
+.study-overview button, .study-action, .history-deck { min-height: 48px; }
+.study-action, .history-deck { display: inline-flex; align-items: center; padding-block: .6rem; }
+.due-decks { margin-top: 2rem; }
+.due-deck-row h3 { margin-bottom: 0; }
+.deck-due-count { margin-block: .25rem; }
+#due-total, .deck-due-count, .rating-totals, .history-time { font-variant-numeric: tabular-nums; }
+.rating-totals { margin: 0; }
+.rating-totals div { display: flex; justify-content: space-between; gap: 1.5rem; padding-block: .75rem; border-top: 1px solid #c7cfc6; }
+.review-history { list-style: none; padding: 0; margin: 0; }
+.history-row { padding-block: 1.5rem; border-top: 1px solid #c7cfc6; }
+.history-question { margin-block: 0 .5rem; }
+.history-detail { margin-block: .5rem 0; }

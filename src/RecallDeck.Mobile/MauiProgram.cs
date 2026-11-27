@@ -26,6 +26,7 @@ public static class MauiProgram
         builder.Services.AddScoped<ReviewScheduler>();
         builder.Services.AddScoped<CardService>();
         builder.Services.AddScoped<ReviewQueueService>();
+        builder.Services.AddScoped<StudyOverviewService>();
         builder.Services.AddScoped<StudyBackupService>();
         builder.Services.AddScoped<IBackupFiles, AndroidBackupFiles>();
 

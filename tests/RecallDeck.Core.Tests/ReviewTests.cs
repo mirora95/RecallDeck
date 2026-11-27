@@ -19,6 +19,7 @@ public sealed class ReviewTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddScoped<RecallDeck.UI.AppNavigation>();
         Services.AddScoped<RecallDeck.UI.AppLifecycle>();
+        Services.AddScoped<StudyOverviewService>();
         Services.AddSingleton<IStudyStore>(store);
         Services.AddSingleton<TimeProvider>(clock);
         Services.AddScoped<ReviewQueueService>();
