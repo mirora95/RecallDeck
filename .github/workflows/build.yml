@@ -29,9 +29,33 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
-      - run: npm ci --ignore-scripts && npm test
+      - run: npm ci --ignore-scripts
+      - run: npm test
       - run: dotnet build tests/RecallDeck.Web.Interop -c Release --verbosity minimal
       - run: dotnet publish src/RecallDeck.Web -c Release -o artifacts/web --verbosity minimal
+      - name: Install pinned Playwright Core managed headless Chromium
+        run: npx --no-install playwright-core install --with-deps chromium --only-shell
+      - name: Published web create, failure, retry, reload and cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/serve-published.py --self-test
+          python3 scripts/serve-published.py artifacts/web/wwwroot --port 5189 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+          python3 - <<'PY'
+          import time, urllib.request
+          for attempt in range(60):
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:5189/decks", timeout=1) as response:
+                      assert response.status == 200
+                  break
+              except OSError:
+                  time.sleep(0.5)
+          else:
+              raise SystemExit("Owned published server did not become ready")
+          PY
+          npm run test:ui -- web http://127.0.0.1:5189
 
   android:
     name: Android compile (no release signing)
@@ -65,6 +89,13 @@ jobs:
       - name: Compile Android SQLite smoke app
         run: >-
           dotnet build tests/RecallDeck.Android.StorageSmoke -c Debug
+          -p:AndroidBuildApplicationPackage=false
+          -p:AndroidSdkDirectory="$ANDROID_HOME"
+          -p:JavaSdkDirectory="$JAVA_HOME"
+          --verbosity minimal
+      - name: Compile isolated Android shared UI failure host
+        run: >-
+          dotnet build tests/RecallDeck.Android.UiSmoke -c Debug
           -p:AndroidBuildApplicationPackage=false
           -p:AndroidSdkDirectory="$ANDROID_HOME"
           -p:JavaSdkDirectory="$JAVA_HOME"

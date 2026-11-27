@@ -39,6 +39,8 @@ Immutable decks/cards retain explicit nonempty UUIDs. Required title/front/back 
 
 ## Run and verify
 
+The [Sprint 1 web/Android persistence journey](docs/testing.md) provides repeatable headless UI checks, controlled failed-save scenarios and an isolated Android test host.
+
 The [Android SQLite adapter and runtime smoke instructions](docs/sqlite-storage.md) cover native persistence, process restart and rollback. The shipping MAUI host registers the adapter with an app-private database path; the shared Decks page uses this registration. Other feature screens remain later work.
 
 Install the .NET **10.0.401 SDK** pinned in `global.json`. From the repository root:
