@@ -63,7 +63,7 @@ else
                     @foreach (var deck in decks)
                     {
                         <li class="deck-row" @key="deck.Id">
-                            <h3>@deck.Title</h3>
+                            <h3><a href="@($"/decks/{deck.Id}")">@deck.Title</a></h3>
                             @if (deck.Description.Length > 0)
                             {
                                 <p class="deck-description">@deck.Description</p>
@@ -105,7 +105,7 @@ else
         </section>
     </div>
     <p role="status">@status</p>
-    <p class="note">Decks are saved on this device. Card editing and reviews are coming next.</p>
+    <p class="note">Decks and cards are saved on this device. Open a deck to manage its cards. Reviews and backups are coming next.</p>
 }
 
 @code {

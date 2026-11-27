@@ -6,6 +6,65 @@ namespace RecallDeck.Core.Tests;
 public class DeckServiceTests
 {
     [Fact]
+    public async Task DetailFiltersCardsAndReturnsDetachedReadOnlyValues()
+    {
+        var store = new InMemoryStudyStore();
+        var service = new DeckService(store);
+        var deck = await service.CreateAsync("Selected");
+        var other = await service.CreateAsync("Other");
+        var card = new Card(Guid.NewGuid(), deck.Id, "Front", "Back", new ReviewSchedule(0, DateTimeOffset.UnixEpoch));
+        await store.CreateCardAsync(card);
+        await store.CreateCardAsync(new Card(Guid.NewGuid(), other.Id, "Other", "Back", card.Schedule));
+
+        var detail = await service.GetAsync(deck.Id);
+        await store.UpdateCardAsync(new Card(card.Id, deck.Id, "Changed", "Back", card.Schedule));
+
+        Assert.Equal(deck, detail.Deck);
+        Assert.Equal(card, Assert.Single(detail.Cards));
+        Assert.Throws<NotSupportedException>(() => Assert.IsAssignableFrom<IList<Card>>(detail.Cards).Clear());
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.GetAsync(Guid.NewGuid()));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.GetAsync(deck.Id, cancellation.Token));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeleteIsAtomicCanRetryAndRetainsUnrelatedRecords(bool populated)
+    {
+        var store = new InMemoryStudyStore();
+        var service = new DeckService(store);
+        var deck = await service.CreateAsync("Selected");
+        var other = await service.CreateAsync("Other");
+        var card = new Card(Guid.NewGuid(), deck.Id, "Front", "Back", new ReviewSchedule(0, DateTimeOffset.UnixEpoch));
+        if (populated)
+        {
+            await store.CreateCardAsync(card);
+            await store.ApplyReviewAsync(new ReviewEvent(Guid.NewGuid(), card.Id, Guid.NewGuid(), ReviewRating.Remembered, DateTimeOffset.UnixEpoch), card.Schedule);
+        }
+        var before = await store.ReadSnapshotAsync();
+        store.BeforeNextCommit = () => throw new IOException("Injected failure");
+
+        await Assert.ThrowsAsync<IOException>(() => service.DeleteAsync(deck.Id));
+        var failed = await store.ReadSnapshotAsync();
+        Assert.Equal(before.Decks, failed.Decks);
+        Assert.Equal(before.Cards, failed.Cards);
+        Assert.Equal(before.Reviews, failed.Reviews);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.DeleteAsync(deck.Id, cancellation.Token));
+
+        await service.DeleteAsync(deck.Id);
+
+        var after = await store.ReadSnapshotAsync();
+        Assert.Equal(other, Assert.Single(after.Decks));
+        Assert.Empty(after.Cards);
+        Assert.Empty(after.Reviews);
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.DeleteAsync(deck.Id));
+    }
+
+    [Fact]
     public async Task CreateReturnsThePersistedValidatedDeck()
     {
         var store = new InMemoryStudyStore();

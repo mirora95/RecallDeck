@@ -17,6 +17,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<IStudyStore>(_ => new SqliteStudyStore(Path.Combine(FileSystem.AppDataDirectory, "study.db3")));
 
         builder.Services.AddScoped<DeckService>();
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddScoped<ReviewScheduler>();
+        builder.Services.AddScoped<CardService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

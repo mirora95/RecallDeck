@@ -220,6 +220,17 @@ export const cases = [
         await reject(call, "applyReview", { ...review, id: "other" }, "duplicate", schedule);
         equal(await read(call), after);
     })],
+    ["empty deck deletion retains other cards and history", () => isolated(async call => {
+        await seed(call);
+        await call("applyReview", review, next);
+        const empty = { ...deck, id: "empty" };
+        await call("createDeck", empty);
+        const before = await read(call);
+
+        equal(await call("deleteDeck", empty.id), {});
+
+        equal(await read(call), { decks: [deck], cards: before.cards, reviews: before.reviews });
+    })],
     ["card and deck deletion cascade history and retain unrelated data", () => isolated(async call => {
         await seed(call);
         await call("applyReview", review, next);

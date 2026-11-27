@@ -186,6 +186,24 @@ public abstract class StudyStoreContractTests
     }
 
     [Fact]
+    public async Task DeletingEmptyDeckRetainsOtherCardsAndHistory()
+    {
+        var store = CreateStore().Store;
+        var (deck, card) = await SeedAsync(store);
+        await store.ApplyReviewAsync(NewReview(card.Id), new ReviewSchedule(1, Now));
+        var empty = new Deck(Guid.NewGuid(), "Empty");
+        await store.CreateDeckAsync(empty);
+        var before = await store.ReadSnapshotAsync();
+
+        await store.DeleteDeckAsync(empty.Id);
+
+        var after = await store.ReadSnapshotAsync();
+        Assert.Equal(deck, Assert.Single(after.Decks));
+        Assert.Equal(before.Cards, after.Cards);
+        Assert.Equal(before.Reviews, after.Reviews);
+    }
+
+    [Fact]
     public async Task DeletingCardOrDeckCascadesHistoryButPreservesOtherDecks()
     {
         var store = CreateStore().Store;
