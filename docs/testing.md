@@ -90,3 +90,7 @@ The isolated Android UI host links the shipping `AndroidBackupFiles` and lifecyc
 For an owned restore rollback fixture in the dedicated UI host only, an incoming card front beginning with `[RecallDeck synthetic failed restore] ` triggers one failed replacement per process. The wrapper validates first, installs a Cards INSERT trigger restricted to that exact incoming card GUID, delegates to the real SQLite transaction (after deletions and deck insertion), then removes the trigger in `finally`. Ordinary restores do not consume the fault; retry succeeds. Tests compare all collections after reopening, including pre-existing reviews. This hook is never registered or compiled into the shipping app.
 
 Parent-run acceptance uses fresh loopback browser contexts and the already authorized Android device. Destructive replacement belongs only to owned synthetic browser contexts or the dedicated native UI host; shipping Android coverage exports/cancels while preserving its full baseline. Capture text evidence and exact source hashes. No device, physical accessibility, offline or full lifecycle coverage may be inferred from compilation.
+
+## Cross-platform recovery acceptance
+
+The [2026-11-27 recovery record](release-smoke-2026-11-27.md) records issue #31's exact tested application commit, real web → Android → web fixture, failure/migration results, reproducible procedure and limits. Its [sanitized JSON evidence](verification/release-smoke-2026-11-27.json) contains artifact and export hashes without raw learner data or local machine paths.
