@@ -1,0 +1,53 @@
+@using RecallDeck.Core
+@implements IDisposable
+
+<div class="review-card" aria-busy="@(Busy ? "true" : "false")">
+    <section class="review-question" aria-labelledby="question-heading">
+        <h2 id="question-heading" tabindex="-1" @ref="questionHeading">Question</h2>
+        <p class="card-text">@Card.Front</p>
+    </section>
+    @if (Revealed)
+    {
+        <section class="review-answer" aria-labelledby="answer-heading">
+            <h2 id="answer-heading" tabindex="-1" @ref="answerHeading">Answer</h2>
+            <p class="card-text">@Card.Back</p>
+        </section>
+        <div class="review-actions form-actions" role="group" aria-label="Rate your recall">
+            <button id="rate-again" type="button" disabled="@(Busy || RetryRequired)" @onclick="() => OnRate.InvokeAsync(ReviewRating.Again)">Again</button>
+            <button id="rate-remembered" type="button" disabled="@(Busy || RetryRequired)" @onclick="() => OnRate.InvokeAsync(ReviewRating.Remembered)">Remembered</button>
+        </div>
+        <p class="note">Again: return in 10 minutes. Remembered: advance to the next review interval.</p>
+    }
+    else
+    {
+        <div class="review-actions">
+            <button id="reveal-answer" type="button" disabled="@Busy" @onclick="OnReveal">Reveal answer</button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Card Card { get; set; } = default!;
+    [Parameter] public bool Revealed { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public bool RetryRequired { get; set; }
+    [Parameter] public EventCallback OnReveal { get; set; }
+    [Parameter] public EventCallback<ReviewRating> OnRate { get; set; }
+
+    private ElementReference questionHeading;
+    private ElementReference answerHeading;
+    private bool previouslyRevealed;
+    private bool disposed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed) return;
+
+        var revealChanged = Revealed && !previouslyRevealed;
+        previouslyRevealed = Revealed;
+        if (revealChanged) await answerHeading.FocusAsync();
+        else if (firstRender) await questionHeading.FocusAsync();
+    }
+
+    public void Dispose() => disposed = true;
+}

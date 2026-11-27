@@ -31,6 +31,7 @@ else if (deck is not null)
     {
         <p class="deck-description">@deck.Description</p>
     }
+    <p><a id="review-deck" href="@($"/review?deck={deck.Id}")">Review due cards in this deck</a></p>
     <button id="delete-deck" type="button" class="secondary" disabled="@(saving || confirming || editingId is not null)" @onclick="BeginDeckDeleteAsync">Delete deck</button>
     @if (confirming)
     {
@@ -123,7 +124,7 @@ else if (deck is not null)
             }
         </section>
     </div>
-    <p class="note">Cards are saved on this device. Reviews and backup export are not available yet. Browser data can be cleared or evicted.</p>
+    <p class="note">Cards are saved on this device. Review due cards from this deck or the Review page. Backup export is not available yet. Browser data can be cleared or evicted.</p>
 }
 <p role="status" aria-live="polite">@(loading ? "Loading deck…" : status)</p>
 

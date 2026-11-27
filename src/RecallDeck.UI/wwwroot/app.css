@@ -70,3 +70,12 @@ textarea { resize: vertical; }
 @media (max-width: 40rem) {
     .deck-workspace { grid-template-columns: 1fr; }
 }
+
+.review-card { max-width: 46rem; margin-block: 2rem; }
+.review-card section { padding-block: 1.5rem; border-top: 1px solid #c7cfc6; }
+.review-card h2 { margin-bottom: .75rem; }
+.review-card .card-text { margin-block: 0; }
+.review-actions { margin-top: 1rem; }
+#review-progress, #review-summary { font-variant-numeric: tabular-nums; }
+
+.review-actions button, .review-retry { min-height: 48px; }

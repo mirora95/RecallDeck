@@ -19,6 +19,7 @@ public class NavigationTests : BunitContext
         Services.AddSingleton(TimeProvider.System);
         Services.AddScoped<ReviewScheduler>();
         Services.AddScoped<CardService>();
+        Services.AddScoped<ReviewQueueService>();
     }
 
     [Theory]
@@ -37,6 +38,12 @@ public class NavigationTests : BunitContext
         Assert.Equal(5, page.FindAll("nav[aria-label='Primary'] a").Count);
         Assert.Equal(active, page.Find("nav a.active").TextContent);
 
+        if (path == "/review")
+        {
+            Assert.Contains("No cards due", page.Find("main").TextContent);
+            return;
+        }
+
         if (path == "/decks")
         {
             Assert.Contains("No decks yet", page.Find("main").TextContent);
@@ -44,7 +51,7 @@ public class NavigationTests : BunitContext
             return;
         }
 
-        Assert.Contains("not available yet", page.Find("main").TextContent);
+        Assert.Contains(path == "/" ? "Backups are planned" : "not available yet", page.Find("main").TextContent);
         Assert.Empty(page.FindAll("main input, main button"));
     }
 
